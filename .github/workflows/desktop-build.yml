@@ -1,5 +1,10 @@
 name: Desktop (Electron)
 
+# 让官方 JS Actions（checkout/setup-node/upload 等）在 Node 24 上运行，消除 Node 20 弃用告警。
+# 参见: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 on:
   workflow_dispatch:
   push:
@@ -25,12 +30,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: "20"
+          node-version: "22"
           cache: npm
           cache-dependency-path: |
             web/package-lock.json
@@ -49,7 +54,7 @@ jobs:
         run: npm run dist
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: script-agent-desktop-${{ matrix.os }}
           path: desktop/release
@@ -64,7 +69,7 @@ jobs:
       contents: write
     steps:
       - name: Download all desktop artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: release-assets
           pattern: script-agent-desktop-*
