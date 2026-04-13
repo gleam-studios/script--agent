@@ -40,7 +40,40 @@
       "hardenedRuntime": false
     },
     "dmg": {
-      "sign": false
+      "sign": false,
+      "backgroundColor": "#f0f0f0",
+      "window": {
+        "width": 680,
+        "height": 480
+      },
+      "contents": [
+        {
+          "x": 130,
+          "y": 260,
+          "type": "file",
+          "name": "Script Agent.app"
+        },
+        {
+          "x": 410,
+          "y": 260,
+          "type": "link",
+          "path": "/Applications"
+        },
+        {
+          "x": 130,
+          "y": 110,
+          "type": "file",
+          "path": "dmg-assets/安装说明.txt",
+          "name": "安装说明.txt"
+        },
+        {
+          "x": 410,
+          "y": 110,
+          "type": "file",
+          "path": "dmg-assets/首次打开-解除隔离.command",
+          "name": "首次打开-解除隔离.command"
+        }
+      ]
     },
     "nsis": {
       "oneClick": false,
