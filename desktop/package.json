@@ -14,7 +14,7 @@
     "download-node": "node scripts/download-node.mjs",
     "stage": "npm run prepare-resources && npm run download-node",
     "pack": "npm run stage && electron-builder --dir",
-    "dist": "npm run stage && electron-builder",
+    "dist": "npm run stage && electron-builder && node scripts/patch-mac-artifacts.mjs",
     "start": "electron ."
   },
   "build": {
