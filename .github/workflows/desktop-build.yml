@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+    tags: ["v*"]
     paths:
       - "web/**"
       - "agent/**"
@@ -11,6 +12,8 @@ on:
       - "skills/**"
       - "desktop/**"
       - ".github/workflows/desktop-build.yml"
+
+# 说明：paths 对「分支 push」生效；打 tag 时 GitHub 不会按 paths 过滤，保证发版必跑构建。
 
 jobs:
   build:
@@ -53,3 +56,28 @@ jobs:
           name: script-agent-desktop-${{ matrix.os }}
           path: desktop/release
           if-no-files-found: warn
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all desktop artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          pattern: script-agent-desktop-*
+          merge-multiple: true
+
+      - name: Create Release and upload installers
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          generate_release_notes: true
+          files: |
+            release-assets/**/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
