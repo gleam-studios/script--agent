@@ -1,0 +1,49 @@
+{
+  "name": "script-agent-desktop",
+  "productName": "Script Agent",
+  "version": "0.1.0",
+  "description": "剧本 Agent 桌面版",
+  "main": "main.cjs",
+  "private": true,
+  "scripts": {
+    "prepare-resources": "node scripts/prepare-resources.mjs",
+    "download-node": "node scripts/download-node.mjs",
+    "stage": "npm run prepare-resources && npm run download-node",
+    "pack": "npm run stage && electron-builder --dir",
+    "dist": "npm run stage && electron-builder",
+    "start": "electron ."
+  },
+  "build": {
+    "appId": "com.gleamstudios.scriptagent",
+    "productName": "Script Agent",
+    "files": ["main.cjs", "package.json"],
+    "directories": {
+      "output": "release"
+    },
+    "extraResources": [
+      { "from": "resources/next", "to": "next" },
+      { "from": "resources/app-root", "to": "app-root" },
+      { "from": "resources/node-bin", "to": "node-bin" }
+    ],
+    "win": {
+      "target": ["nsis", "portable"]
+    },
+    "mac": {
+      "target": ["dmg", "zip"],
+      "category": "public.app-category.productivity",
+      "identity": null,
+      "hardenedRuntime": false
+    },
+    "dmg": {
+      "sign": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  },
+  "devDependencies": {
+    "electron": "^34.0.0",
+    "electron-builder": "^25.1.8"
+  }
+}

@@ -1,8 +1,9 @@
 import fs from "fs";
 import path from "path";
 import type { Project, ProjectSummary } from "./types";
+import { resolveDataProjectsDir } from "./agent-paths";
 
-const DATA_DIR = path.resolve(process.cwd(), "..", "data", "projects");
+const DATA_DIR = resolveDataProjectsDir();
 
 function ensureDir() {
   if (!fs.existsSync(DATA_DIR)) {

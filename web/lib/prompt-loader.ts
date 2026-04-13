@@ -1,7 +1,8 @@
 import fs from "fs";
 import path from "path";
+import { resolveAgentRoot } from "./agent-paths";
 
-const AGENT_ROOT = path.resolve(process.cwd(), "..");
+const AGENT_ROOT = resolveAgentRoot();
 const AGENT_ASSETS_ROOT = path.join(AGENT_ROOT, "agent");
 
 const ORDERED_FILES = [
