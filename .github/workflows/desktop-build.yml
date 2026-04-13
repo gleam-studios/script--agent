@@ -80,6 +80,19 @@ jobs:
         with:
           draft: false
           generate_release_notes: true
+          body: |
+            ### 首次打开（必读）
+
+            **macOS**：若提示「“Script Agent”已损坏，无法打开」——多为未公证应用被拦截，并非文件损坏。请在终端执行（请按 `.app` 实际路径修改）：
+
+            ```bash
+            xattr -cr "/Applications/Script Agent.app"
+            open "/Applications/Script Agent.app"
+            ```
+
+            仍不行可尝试：按住 Control 点应用 → **打开**。更完整说明见仓库内 [`desktop/README.md`](https://github.com/gleam-studios/script--agent/blob/main/desktop/README.md)。
+
+            **Windows**：若出现 SmartScreen，点 **更多信息** → **仍要运行**。
           files: |
             release-assets/**/*
         env:
