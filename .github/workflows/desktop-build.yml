@@ -75,6 +75,23 @@ jobs:
           pattern: script-agent-desktop-*
           merge-multiple: true
 
+      # 禁止 release-assets/**/*：会包含 win-unpacked、node-bin、.next 等上万杂文件。
+      - name: Collect installer files only
+        run: |
+          mkdir -p installers
+          find release-assets -type f ! -path '*/win-unpacked/*' ! -path '*/node-bin/*' \( \
+            -name '*.dmg' -o \
+            -name '*-mac.zip' -o \
+            -name '*.blockmap' -o \
+            -name '*Setup*.exe' \
+            \) -print0 | xargs -0 -r cp -t installers/
+          find release-assets -type f ! -path '*/win-unpacked/*' ! -path '*/node-bin/*' \( \
+            \( -name 'Script Agent *.exe' -o -name 'Script.Agent*.exe' \) ! -name '*Setup*' \
+            \) -print0 | xargs -0 -r cp -t installers/
+          echo "—— installers/ ——"
+          ls -la installers/
+          test "$(find installers -type f | wc -l)" -ge 1
+
       - name: Create Release and upload installers
         uses: softprops/action-gh-release@v2
         with:
@@ -98,6 +115,6 @@ jobs:
 
             **Windows**：若出现 SmartScreen，点 **更多信息** → **仍要运行**。
           files: |
-            release-assets/**/*
+            installers/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
