@@ -7,8 +7,13 @@ import type { OnboardingStatus, Project, Settings } from "@/lib/types";
 
 export const runtime = "nodejs";
 
-/** 单次请求送入模型的原文上限（字符） */
-const ANALYZE_INPUT_MAX = 120_000;
+/**
+ * 单次「分析原文」送入模型的拼接正文上限（字符）。
+ * 注意：实际能否成功取决于所选模型的上下文总长（system + 本文 + 回复）；
+ * 常见模型总上下文有限（如约 128k～1M tokens 视型号而定），百万级字符英文稿极易超出而报 context_length_exceeded，
+ * 需换长上下文模型或后续改为分段分析。
+ */
+const ANALYZE_INPUT_MAX = 1_000_000;
 
 export async function POST(req: NextRequest) {
   let body: { projectId?: string; settings?: Settings };

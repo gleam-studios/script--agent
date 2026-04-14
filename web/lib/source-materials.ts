@@ -1,7 +1,11 @@
 import type { SourceMaterial } from "./types";
 
-/** 项目内所有素材总字数上限（与计划一致，约 500KB 量级按字符计） */
-export const SOURCE_MATERIALS_MAX_CHARS = 500_000;
+/**
+ * 项目内所有素材总字数上限（按字符计）。
+ * 与 `analyze-source` 的 `ANALYZE_INPUT_MAX` 对齐思路：需存得下才可能整段参与分析。
+ * 超大文本会占用内存与 JSON 体积；分析时仍受所选模型上下文窗口约束。
+ */
+export const SOURCE_MATERIALS_MAX_CHARS = 1_000_000;
 
 /** 策划首轮注入：每份素材截取字数 */
 export const PLANNING_EXCERPT_PER_MATERIAL = 4000;
