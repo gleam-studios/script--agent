@@ -1,15 +1,23 @@
 import { NextRequest } from "next/server";
-import { generatePrefillMetaFromProject } from "@/lib/onboarding-prefill-meta";
 import { completeChatNonStream } from "@/lib/openai-completion";
 import { buildAdaptationPlannerBootstrap } from "@/lib/planning-bootstrap";
 import { getProject, saveProject } from "@/lib/project-store";
 import { loadAdaptationPlannerPrompt } from "@/lib/prompt-loader";
+import { completeSeriesBibleLlm } from "@/lib/series-bible-llm";
 import type { Message, OnboardingStatus, Project, ProjectMeta, Settings } from "@/lib/types";
 
 export const runtime = "nodejs";
 
 const USER_PLAN_REQUEST =
-  "请根据系统提示中的全部上下文，直接输出一份完整的《创作思路确认书》（Markdown）。不要向用户提问；不要输出 STAGE 1～5 剧本模板结构；一次性写清方向与体量、人物量级、钩子与结构要点、改编删留策略等，便于立项与后续编剧室使用。";
+  "请根据系统提示中的全部上下文，直接输出一份完整的《创作思路确认书》（Markdown）。不要向用户提问；不要输出 STAGE 1～5 剧本模板结构；一次性写清方向与体量、人物量级、钩子与结构要点、改编删留策略等，便于立项与后续编剧室使用。" +
+  "\n\n全文**最后**必须另起一节，二级标题与下列**键名逐字一致**（便于工程侧从正文自动解析立项表单，勿改键名、勿用表格替代该列表）；每行「键：值」，值内勿换行；未知可写「待确认」：" +
+  "\n\n## 立项字段（系统自动识别）" +
+  "\n剧名：" +
+  "\n集数/区间：" +
+  "\n单集时长（分钟）：" +
+  "\n目标市场：" +
+  "\n台词语言：" +
+  "\n备注：";
 
 function metaForBootstrap(p: Project): ProjectMeta {
   const m = p.meta;
@@ -95,25 +103,34 @@ export async function POST(req: NextRequest) {
   }
 
   const projectWithBrief: Project = { ...project, creativeBrief };
-  const prefill = await generatePrefillMetaFromProject(projectWithBrief, settings);
+
+  const replaceBible = Boolean((project.seriesBible ?? "").trim());
+  const bibleResult = await completeSeriesBibleLlm(projectWithBrief, settings, {
+    replaceExisting: replaceBible,
+  });
 
   const onboardingStatus: OnboardingStatus =
     projectWithBrief.onboardingStatus === "ready" ? "ready" : "planning";
 
-  const merged: Project = {
+  let merged: Project = {
     ...projectWithBrief,
     adaptationPhase: "meta",
     onboardingStatus,
     planningMessages: [{ role: "assistant", content: creativeBrief }],
   };
 
+  let seriesBibleError: string | undefined;
+  if (bibleResult.ok) {
+    merged = { ...merged, seriesBible: bibleResult.seriesBible };
+  } else {
+    seriesBibleError = bibleResult.error;
+  }
+
   saveProject(merged);
 
   return Response.json({
     ok: true,
     project: merged,
-    meta: prefill.meta,
-    prefillOk: prefill.ok,
-    prefillWarning: prefill.ok ? undefined : prefill.error,
+    seriesBibleError,
   });
 }

@@ -16,6 +16,10 @@ interface Props {
   compact?: boolean;
   /** 内容区高度（预览与编辑共用，如长文槽位 min-h） */
   textareaClassName?: string;
+  /** 提供时在与「编辑」同一行右侧显示红色「移除」按钮（样式与编辑一致） */
+  onRemove?: () => void;
+  /** 移除按钮文案，默认「移除」 */
+  removeLabel?: string;
 }
 
 const DEBOUNCE_MS = 550;
@@ -32,6 +36,8 @@ export default function ArtifactSlotEditor({
   rows = 6,
   compact,
   textareaClassName,
+  onRemove,
+  removeLabel = "移除",
 }: Props) {
   const [draft, setDraft] = useState(value);
   const [editing, setEditing] = useState(false);
@@ -102,6 +108,15 @@ export default function ArtifactSlotEditor({
           >
             {editing ? "完成" : "编辑"}
           </button>
+          {onRemove ? (
+            <button
+              type="button"
+              onClick={onRemove}
+              className="rounded border border-rose-600/80 px-1.5 py-0.5 text-[9px] font-medium text-rose-400 transition hover:border-rose-500/60 hover:bg-rose-950/50 hover:text-rose-100"
+            >
+              {removeLabel}
+            </button>
+          ) : null}
         </div>
       </div>
       <div className="border-t border-zinc-800/40 px-3 py-2">

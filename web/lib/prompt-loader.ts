@@ -88,6 +88,7 @@ let planningCached: string | null = null;
 let adaptationAnalyzeCached: string | null = null;
 let adaptationDiscussCached: string | null = null;
 let adaptationPlannerCached: string | null = null;
+let seriesBibleGeneratorCached: string | null = null;
 let prefillMetaCached: string | null = null;
 
 /** 策划会话专用：轻量系统提示，不含全量 knowledge/templates */
@@ -128,6 +129,14 @@ export function loadAdaptationPlannerPrompt(): string {
   if (p2) parts.push(`<!-- file: prompts/script-planning-agent-role.md -->\n${p2}`);
   adaptationPlannerCached = parts.join("\n\n");
   return adaptationPlannerCached;
+}
+
+/** 进编剧室前：由确认书生成项目级系列圣经 */
+export function loadSeriesBibleGeneratorPrompt(): string {
+  if (seriesBibleGeneratorCached) return seriesBibleGeneratorCached;
+  const p = readFile("prompts/generate-series-bible.md");
+  seriesBibleGeneratorCached = p ? `<!-- file: prompts/generate-series-bible.md -->\n${p}` : "";
+  return seriesBibleGeneratorCached;
 }
 
 /** 立项元数据 JSON 抽取 */

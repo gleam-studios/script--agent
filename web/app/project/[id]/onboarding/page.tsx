@@ -23,6 +23,12 @@ import {
   assertSourceMaterialsWithinLimit,
   totalSourceChars,
 } from "@/lib/source-materials";
+import {
+  downloadCreativeBriefMarkdownFile,
+  downloadSeriesBibleMarkdownFile,
+} from "@/lib/export-artifacts";
+import { parseCreativeBriefToProjectMeta } from "@/lib/creative-brief-meta-parse";
+import { extractCreativeBriefDocument } from "@/lib/creative-brief-extract";
 
 function normalizeMeta(p: Project): ProjectMeta {
   const m = p.meta;
@@ -72,7 +78,10 @@ export default function OnboardingPage() {
   const [briefOpen, setBriefOpen] = useState(false);
   const [briefDraft, setBriefDraft] = useState("");
   const [creativeBrief, setCreativeBrief] = useState("");
+  /** 立项页可编辑的系列圣经草稿，与编剧室侧栏同源字段 */
+  const [seriesBibleDraft, setSeriesBibleDraft] = useState("");
   const [generatingPlan, setGeneratingPlan] = useState(false);
+  const [generatingBible, setGeneratingBible] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const adaptationMessagesRef = useRef<Message[]>([]);
 
@@ -106,6 +115,7 @@ export default function OnboardingPage() {
       setPlanningMessages(p.planningMessages ?? []);
       setAdaptationMessages(p.adaptationMessages ?? []);
       setCreativeBrief(p.creativeBrief ?? "");
+      setSeriesBibleDraft(p.seriesBible ?? "");
       const om: OriginMode = p.originMode ?? "original";
       setOriginTab(om);
       let nextAdapt = effectiveAdaptPhase(p);
@@ -130,6 +140,58 @@ export default function OnboardingPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const runGenerateSeriesBible = useCallback(
+    async (opts?: {
+      replaceExisting?: boolean;
+      creativeBriefOverride?: string;
+    }): Promise<Project> => {
+    if (!settings.apiKey) {
+      throw new Error("请先配置 API Key");
+    }
+    const res = await fetch("/api/onboarding/generate-series-bible", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectId: id,
+        settings,
+        replaceExisting: opts?.replaceExisting,
+        creativeBriefOverride: opts?.creativeBriefOverride,
+      }),
+    });
+    const data = (await res.json()) as { error?: string; project?: Project };
+    if (res.status === 409) {
+      const r2 = await fetch(`/api/projects/${id}`);
+      if (r2.ok) {
+        const p2 = (await r2.json()) as Project;
+        if ((p2.seriesBible ?? "").trim()) return p2;
+      }
+    }
+    if (!res.ok) throw new Error(data.error || res.statusText);
+    const merged = data.project;
+    if (!merged || !(merged.seriesBible ?? "").trim()) {
+      throw new Error("未返回系列圣经");
+    }
+    return merged;
+  },
+  [id, settings]
+);
+
+  async function handleGenerateBibleFromReadyBar() {
+    if (!settings.apiKey) {
+      setSettingsOpen(true);
+      return;
+    }
+    setGeneratingBible(true);
+    try {
+      const p = await runGenerateSeriesBible();
+      setProject(p);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "生成系列圣经失败");
+    } finally {
+      setGeneratingBible(false);
+    }
+  }
 
   function updateMeta<K extends keyof ProjectMeta>(key: K, value: ProjectMeta[K]) {
     setMeta((m) => ({ ...m, [key]: value }));
@@ -285,16 +347,90 @@ export default function OnboardingPage() {
 
   function openBriefModalOriginal() {
     const lastAssistant = [...planningMessages].reverse().find((m) => m.role === "assistant");
-    setBriefDraft((lastAssistant?.content ?? "").trim() || project?.creativeBrief?.trim() || "");
+    const lastRaw = (lastAssistant?.content ?? "").trim();
+    const extracted = lastRaw ? extractCreativeBriefDocument(lastRaw).trim() : "";
+    setBriefDraft(extracted || lastRaw || project?.creativeBrief?.trim() || "");
+    setSeriesBibleDraft(project?.seriesBible ?? "");
     setBriefOpen(true);
   }
 
+  async function handleLlmFillSeriesBibleInForm(briefForLlm: string) {
+    const brief = briefForLlm.trim();
+    if (!brief) {
+      alert("请先填写《创作思路确认书》正文");
+      return;
+    }
+    if (!settings.apiKey) {
+      setSettingsOpen(true);
+      return;
+    }
+    const hasBible = !!(seriesBibleDraft.trim() || (project?.seriesBible ?? "").trim());
+    setGeneratingBible(true);
+    try {
+      const p = await runGenerateSeriesBible({
+        replaceExisting: hasBible,
+        creativeBriefOverride: brief,
+      });
+      setProject(p);
+      setSeriesBibleDraft(p.seriesBible ?? "");
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "生成系列圣经失败");
+    } finally {
+      setGeneratingBible(false);
+    }
+  }
+
+  async function handleSaveBibleManualFromReadyBar() {
+    const t = seriesBibleDraft.trim();
+    if (!t) {
+      alert("请填写或粘贴系列圣经正文");
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/projects/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ seriesBible: t }),
+      });
+      if (!res.ok) throw new Error("保存失败");
+      const p: Project = await res.json();
+      setProject(p);
+      setSeriesBibleDraft(p.seriesBible ?? "");
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "保存失败");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleAutoFillMetaFromCreativeBrief() {
+    const brief = creativeBrief.trim();
+    if (!brief) {
+      alert("请先填写或保留《创作思路确认书》正文");
+      return;
+    }
+    const fallback = project?.name?.trim() || meta.seriesTitle?.trim() || "未命名项目";
+    const { meta: parsed, warnings } = parseCreativeBriefToProjectMeta(brief, fallback);
+    setMeta(parsed);
+    if (warnings.length) {
+      alert(`${warnings.join("\n")}\n\n请核对上方立项字段；若缺节可在确认书文末补上「## 立项字段（系统自动识别）」及键值行。`);
+    }
+  }
+
   async function handleFinishOnboardingOriginal() {
-    const brief = briefDraft.trim();
+    const briefRaw = briefDraft.trim();
+    const brief =
+      extractCreativeBriefDocument(briefRaw) || briefRaw;
     if (!brief) {
       alert("请填写或粘贴《创作思路确认书》正文");
       return;
     }
+    if (!settings.apiKey) {
+      setSettingsOpen(true);
+      return;
+    }
+    const bibleSave = seriesBibleDraft.trim();
     setSaving(true);
     try {
       const res = await fetch(`/api/projects/${id}`, {
@@ -308,11 +444,38 @@ export default function OnboardingPage() {
           sourceMaterials: materials,
           name: meta.seriesTitle.trim() || project?.name,
           originMode: "original",
+          ...(bibleSave ? { seriesBible: bibleSave } : {}),
         }),
       });
       if (!res.ok) throw new Error("保存失败");
+      const saved: Project = await res.json();
       setBriefOpen(false);
-      alert("已进入编剧室：请从 STAGE 1 剧情梗概开始。");
+      setProject(saved);
+      setSeriesBibleDraft(saved.seriesBible ?? seriesBibleDraft);
+
+      if ((saved.seriesBible ?? "").trim()) {
+        alert("已保存立项与系列圣经。请从 STAGE 1 剧情梗概开始。");
+        router.push(`/studio/${id}`);
+        return;
+      }
+
+      setGeneratingBible(true);
+      try {
+        const p = await runGenerateSeriesBible({ creativeBriefOverride: brief });
+        setProject(p);
+        setSeriesBibleDraft(p.seriesBible ?? "");
+      } catch (e) {
+        alert(
+          e instanceof Error
+            ? `${e.message}（立项已保存，请在本页补全系列圣经或点击「生成系列圣经」后再进入编剧室）`
+            : "生成系列圣经失败"
+        );
+        await load();
+        return;
+      } finally {
+        setGeneratingBible(false);
+      }
+      alert("系列圣经已生成。请从 STAGE 1 剧情梗概开始。");
       router.push(`/studio/${id}`);
     } catch (e) {
       alert(e instanceof Error ? e.message : "保存失败");
@@ -410,9 +573,7 @@ export default function OnboardingPage() {
       const data = (await res.json()) as {
         error?: string;
         project?: Project;
-        meta?: ProjectMeta;
-        prefillOk?: boolean;
-        prefillWarning?: string;
+        seriesBibleError?: string;
       };
       if (!res.ok) {
         alert(data.error || "生成失败");
@@ -421,12 +582,14 @@ export default function OnboardingPage() {
       if (data.project) {
         setProject(data.project);
         setCreativeBrief(data.project.creativeBrief ?? "");
+        setSeriesBibleDraft(data.project.seriesBible ?? "");
         setPlanningMessages(data.project.planningMessages ?? []);
         setAdaptationMessages(data.project.adaptationMessages ?? latestDiscuss);
       }
-      if (data.meta) setMeta(data.meta);
-      if (data.prefillOk === false && data.prefillWarning) {
-        alert(`预填未完全成功：${data.prefillWarning}。你可手动修改表单。`);
+      if (data.seriesBibleError) {
+        alert(
+          `《创作思路确认书》已保存。《系列圣经》自动生成未成功：${data.seriesBibleError}\n可在本页点击「用 LLM 根据确认书生成」补全圣经。`
+        );
       }
       setAdaptPhase("meta");
     } catch (e) {
@@ -445,6 +608,11 @@ export default function OnboardingPage() {
       alert("规划正文为空，请填写或返回上一步重新生成");
       return;
     }
+    if (!settings.apiKey) {
+      setSettingsOpen(true);
+      return;
+    }
+    const bibleSave = seriesBibleDraft.trim();
     setSaving(true);
     try {
       const res = await fetch(`/api/projects/${id}`, {
@@ -460,10 +628,39 @@ export default function OnboardingPage() {
           planningMessages,
           adaptationMessages,
           creativeBrief: creativeBrief.trim(),
+          ...(bibleSave ? { seriesBible: bibleSave } : {}),
         }),
       });
       if (!res.ok) throw new Error("保存失败");
-      alert("已进入编剧室：请从 STAGE 1 剧情梗概开始。");
+      const saved: Project = await res.json();
+      setProject(saved);
+      setSeriesBibleDraft(saved.seriesBible ?? seriesBibleDraft);
+
+      if ((saved.seriesBible ?? "").trim()) {
+        alert("已保存立项与系列圣经。请从 STAGE 1 剧情梗概开始。");
+        router.push(`/studio/${id}`);
+        return;
+      }
+
+      setGeneratingBible(true);
+      try {
+        const p = await runGenerateSeriesBible({
+          creativeBriefOverride: creativeBrief.trim(),
+        });
+        setProject(p);
+        setSeriesBibleDraft(p.seriesBible ?? "");
+      } catch (e) {
+        alert(
+          e instanceof Error
+            ? `${e.message}（立项已保存，请在本页补全系列圣经或点击「生成系列圣经」后再进入编剧室）`
+            : "生成系列圣经失败"
+        );
+        await load();
+        return;
+      } finally {
+        setGeneratingBible(false);
+      }
+      alert("系列圣经已生成。请从 STAGE 1 剧情梗概开始。");
       router.push(`/studio/${id}`);
     } catch (e) {
       alert(e instanceof Error ? e.message : "保存失败");
@@ -690,11 +887,61 @@ export default function OnboardingPage() {
 
         {status === "ready" && (
           <div className="mb-4 rounded-lg border border-emerald-900/60 bg-emerald-950/30 px-3 py-2 text-xs text-emerald-200/90">
-            本项目已完成立项。你可继续调整策划，或
-            <Link href={`/studio/${id}`} className="ml-1 text-indigo-400 underline">
-              进入编剧室
-            </Link>
-            。
+            {(project?.seriesBible ?? "").trim() ? (
+              <>
+                本项目已完成立项且已生成系列圣经。你可继续调整策划，或
+                <Link href={`/studio/${id}`} className="ml-1 text-indigo-400 underline">
+                  进入编剧室
+                </Link>
+                。
+              </>
+            ) : (
+              <div className="space-y-2">
+                <p>
+                  立项已就绪，但尚缺系列圣经；须补全后才可进入编剧室。
+                  {(project?.creativeBrief ?? "").trim() ? null : (
+                    <span className="block text-amber-200/80">（缺少《创作思路确认书》，请回到对应步骤补全。）</span>
+                  )}
+                </p>
+                <label className="block text-[11px] text-zinc-500">手填 / 粘贴系列圣经（与编剧室侧栏同源）</label>
+                <textarea
+                  value={seriesBibleDraft}
+                  onChange={(e) => setSeriesBibleDraft(e.target.value)}
+                  rows={8}
+                  className="w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-2 font-mono text-[11px] leading-relaxed text-zinc-200"
+                  placeholder="可直接粘贴 Markdown…"
+                />
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={saving || !seriesBibleDraft.trim()}
+                    onClick={() => void handleSaveBibleManualFromReadyBar()}
+                    className="rounded-lg border border-zinc-600 px-3 py-1.5 text-[11px] text-zinc-200 hover:bg-zinc-800 disabled:opacity-50"
+                  >
+                    {saving ? "保存中…" : "保存手填圣经"}
+                  </button>
+                  {(project?.creativeBrief ?? "").trim() ? (
+                    <button
+                      type="button"
+                      disabled={generatingBible || !settings.apiKey}
+                      onClick={() => void handleGenerateBibleFromReadyBar()}
+                      className="rounded-lg bg-indigo-600 px-3 py-1.5 text-[11px] font-medium text-white disabled:opacity-50"
+                    >
+                      {generatingBible ? "正在生成系列圣经…" : "用 LLM 生成系列圣经"}
+                    </button>
+                  ) : null}
+                </div>
+                {!settings.apiKey ? (
+                  <button
+                    type="button"
+                    onClick={() => setSettingsOpen(true)}
+                    className="ml-2 text-[11px] text-indigo-300 underline"
+                  >
+                    配置 API Key
+                  </button>
+                ) : null}
+              </div>
+            )}
           </div>
         )}
 
@@ -748,6 +995,7 @@ export default function OnboardingPage() {
                   ← 返回修改元数据与素材
                 </button>
                 <PlanningChatPanel
+                  layout="fixedScroll"
                   settings={settings}
                   messages={planningMessages}
                   planningBootstrap={planningBootstrap}
@@ -834,7 +1082,7 @@ export default function OnboardingPage() {
                   onClick={() => void handleGenerateAdaptPlan()}
                   className="rounded-lg bg-indigo-600 px-4 py-2 text-sm text-white disabled:opacity-50"
                 >
-                  {generatingPlan ? "正在生成规划…" : "下一步：自动生成规划并填写立项信息"}
+                  {generatingPlan ? "正在生成…" : "下一步：生成确认书与系列圣经"}
                 </button>
               </div>
             )}
@@ -850,19 +1098,45 @@ export default function OnboardingPage() {
                   onClick={() => void handleGenerateAdaptPlan()}
                   className="rounded-lg bg-amber-700 px-4 py-2 text-sm text-white disabled:opacity-50"
                 >
-                  {generatingPlan ? "生成中…" : "一键生成规划并进入立项表单"}
+                  {generatingPlan ? "生成中…" : "一键生成确认书与圣经并进入立项表单"}
                 </button>
               </div>
             )}
 
             {phase === "meta" && (
               <div className="space-y-4">
-                <p className="text-xs text-zinc-400">请确认或修改立项信息（已由上文自动预填，可手工调整）。</p>
+                <p className="text-xs text-zinc-400">
+                  请确认或修改立项信息。确认书文末须有固定节「## 立项字段（系统自动识别）」及键值行；点击下方按钮将**本地解析**该节填入表单（不调用大模型、无需 API Key）。
+                </p>
+                <button
+                  type="button"
+                  disabled={!creativeBrief.trim()}
+                  onClick={handleAutoFillMetaFromCreativeBrief}
+                  className="rounded-lg border border-indigo-600/60 bg-indigo-950/40 px-3 py-2 text-xs font-medium text-indigo-100 hover:bg-indigo-900/50 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  根据《创作思路确认书》自动填写立项表单
+                </button>
                 {metaForm}
                 <div>
-                  <label className="block text-xs text-zinc-500">
-                    规划全文（《创作思路确认书》，可编辑）
-                  </label>
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="block text-xs text-zinc-500">
+                      规划全文（《创作思路确认书》，可编辑）
+                    </label>
+                    <button
+                      type="button"
+                      disabled={!creativeBrief.trim()}
+                      onClick={() =>
+                        downloadCreativeBriefMarkdownFile(
+                          project?.name?.trim() || meta.seriesTitle?.trim() || "未命名项目",
+                          creativeBrief
+                        )
+                      }
+                      className="shrink-0 rounded border border-zinc-600 px-2 py-0.5 text-[11px] text-zinc-300 transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40"
+                      title="下载为 Markdown 文件"
+                    >
+                      导出 .md
+                    </button>
+                  </div>
                   <textarea
                     value={creativeBrief}
                     onChange={(e) => setCreativeBrief(e.target.value)}
@@ -871,19 +1145,80 @@ export default function OnboardingPage() {
                     placeholder="规划正文将显示在此…"
                   />
                 </div>
+                <div>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <label className="block text-xs text-zinc-500">
+                      系列圣经（SSOT，Markdown，可编辑）
+                    </label>
+                    <div className="flex shrink-0 flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={!seriesBibleDraft.trim()}
+                        onClick={() =>
+                          downloadSeriesBibleMarkdownFile(
+                            project?.name?.trim() || meta.seriesTitle?.trim() || "未命名项目",
+                            seriesBibleDraft
+                          )
+                        }
+                        className="rounded border border-zinc-600 px-2 py-0.5 text-[11px] text-zinc-300 transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40"
+                        title="下载为 Markdown"
+                      >
+                        导出圣经 .md
+                      </button>
+                      <button
+                        type="button"
+                        disabled={generatingBible || !creativeBrief.trim() || !settings.apiKey}
+                        onClick={() => void handleLlmFillSeriesBibleInForm(creativeBrief)}
+                        className="rounded border border-indigo-700 bg-indigo-950/50 px-2 py-0.5 text-[11px] text-indigo-200 transition hover:bg-indigo-900/40 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        {generatingBible ? "生成中…" : "用 LLM 根据确认书生成"}
+                      </button>
+                    </div>
+                  </div>
+                  <p className="mt-1 text-[10px] leading-relaxed text-zinc-600">
+                    与编剧室侧栏「系列圣经」为同一数据；可手打粘贴，也可用 LLM 生成后再改。若此处已有正文，保存时将直接采用，不再自动覆盖。
+                  </p>
+                  <textarea
+                    value={seriesBibleDraft}
+                    onChange={(e) => setSeriesBibleDraft(e.target.value)}
+                    rows={12}
+                    className="mt-1 w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-2 font-mono text-[11px] leading-relaxed text-zinc-200"
+                    placeholder="建议含一级标题「# 系列圣经与里程碑（SERIES_BIBLE）」…"
+                  />
+                </div>
                 <button
                   type="button"
                   disabled={saving}
                   onClick={() => void handleFinishAdaptMeta()}
                   className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
                 >
-                  {saving ? "保存中…" : "确认并进入编剧室"}
+                  {saving
+                    ? generatingBible
+                      ? "正在生成系列圣经…"
+                      : "保存中…"
+                    : "确认并进入编剧室"}
                 </button>
               </div>
             )}
 
             {phase === "ready" && serverMode === "adaptation" && (
-              <p className="text-xs text-zinc-500">改编立项已完成，请从顶部链接进入编剧室。</p>
+              <div className="space-y-2">
+                <p className="text-xs text-zinc-500">改编立项已完成，请从顶部链接进入编剧室。</p>
+                {(project?.creativeBrief ?? "").trim() ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      downloadCreativeBriefMarkdownFile(
+                        project?.name?.trim() || meta.seriesTitle?.trim() || "未命名项目",
+                        (project?.creativeBrief ?? "").trim()
+                      )
+                    }
+                    className="rounded border border-zinc-600 px-3 py-1.5 text-xs text-zinc-300 hover:bg-zinc-800"
+                  >
+                    导出《创作思路确认书》.md
+                  </button>
+                ) : null}
+              </div>
             )}
           </div>
         )}
@@ -900,31 +1235,86 @@ export default function OnboardingPage() {
             onClick={(e) => e.stopPropagation()}
             role="dialog"
           >
-            <h2 className="mb-2 text-sm font-semibold text-zinc-100">保存《创作思路确认书》</h2>
-            <p className="mb-2 text-[11px] text-zinc-500">可编辑后保存；将进入编剧室主流程（STAGE 1 起）。</p>
+            <h2 className="mb-2 text-sm font-semibold text-zinc-100">保存立项文稿</h2>
+            <p className="mb-2 text-[11px] text-zinc-500">
+              确认书与系列圣经均可编辑。若圣经框内已有正文，保存时将直接采用；否则将尝试用 LLM 根据确认书自动生成后再进入编剧室（STAGE 1 起）。
+            </p>
+            <p className="mb-1 text-[10px] font-medium text-zinc-400">《创作思路确认书》</p>
             <textarea
               value={briefDraft}
               onChange={(e) => setBriefDraft(e.target.value)}
-              rows={12}
+              rows={10}
               className="mb-3 w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1.5 font-mono text-[11px] leading-relaxed"
             />
-            <div className="flex justify-end gap-2">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-[10px] font-medium text-zinc-400">系列圣经（SSOT）</p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={!seriesBibleDraft.trim()}
+                  onClick={() =>
+                    downloadSeriesBibleMarkdownFile(
+                      project?.name?.trim() || meta.seriesTitle?.trim() || "未命名项目",
+                      seriesBibleDraft
+                    )
+                  }
+                  className="rounded border border-zinc-600 px-2 py-0.5 text-[10px] text-zinc-300 hover:bg-zinc-800 disabled:opacity-40"
+                >
+                  导出圣经
+                </button>
+                <button
+                  type="button"
+                  disabled={generatingBible || !briefDraft.trim() || !settings.apiKey}
+                  onClick={() => void handleLlmFillSeriesBibleInForm(briefDraft)}
+                  className="rounded border border-indigo-700 bg-indigo-950/50 px-2 py-0.5 text-[10px] text-indigo-200 disabled:opacity-40"
+                >
+                  {generatingBible ? "生成中…" : "LLM 生成圣经"}
+                </button>
+              </div>
+            </div>
+            <textarea
+              value={seriesBibleDraft}
+              onChange={(e) => setSeriesBibleDraft(e.target.value)}
+              rows={8}
+              className="mb-3 w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1.5 font-mono text-[11px] leading-relaxed"
+              placeholder="可手填，或用「LLM 生成圣经」…"
+            />
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <button
                 type="button"
-                disabled={saving}
-                onClick={() => setBriefOpen(false)}
-                className="rounded px-3 py-1.5 text-xs text-zinc-400"
+                disabled={!briefDraft.trim()}
+                onClick={() =>
+                  downloadCreativeBriefMarkdownFile(
+                    project?.name?.trim() || meta.seriesTitle?.trim() || "未命名项目",
+                    briefDraft
+                  )
+                }
+                className="rounded border border-zinc-600 px-3 py-1.5 text-xs text-zinc-300 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40"
               >
-                取消
+                导出确认书 .md
               </button>
-              <button
-                type="button"
-                disabled={saving}
-                onClick={() => void handleFinishOnboardingOriginal()}
-                className="rounded bg-indigo-600 px-3 py-1.5 text-xs text-white disabled:opacity-50"
-              >
-                {saving ? "保存中…" : "保存并进入"}
-              </button>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => setBriefOpen(false)}
+                  className="rounded px-3 py-1.5 text-xs text-zinc-400"
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => void handleFinishOnboardingOriginal()}
+                  className="rounded bg-indigo-600 px-3 py-1.5 text-xs text-white disabled:opacity-50"
+                >
+                  {saving
+                    ? generatingBible
+                      ? "正在生成系列圣经…"
+                      : "保存中…"
+                    : "保存并进入"}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -934,7 +1324,7 @@ export default function OnboardingPage() {
 
       {generatingPlan && (
         <div className="fixed inset-0 z-[60] flex flex-col items-center justify-center gap-2 bg-black/55 text-zinc-100">
-          <p className="text-sm font-medium">正在生成规划并预填表单</p>
+          <p className="text-sm font-medium">正在生成《创作思路确认书》与《系列圣经》…</p>
           <p className="text-xs text-zinc-400">请稍候，可能需要数十秒…</p>
         </div>
       )}

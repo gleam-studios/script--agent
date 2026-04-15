@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { Artifact, Snapshot } from "@/lib/types";
+import type { Artifact } from "@/lib/types";
 import { STAGES, STAGE_LABELS } from "@/lib/types";
 import { getStudioAutoStageUserMessage } from "@/lib/studio-auto-kickoff";
 import { downloadArtifactsZip } from "@/lib/export-artifacts";
@@ -12,14 +12,11 @@ interface Props {
   projectName: string;
   hasProject: boolean;
   artifacts: Artifact[];
-  snapshots: Snapshot[];
   currentStage: number;
   /** 与右侧流程条联动：当前查看哪一阶段的产物（1–5） */
   viewStage: number;
   collapsed: boolean;
   onToggle: () => void;
-  onRestore: (snapshot: Snapshot) => void;
-  onCreateSnapshot: () => void;
   /** 从最新一条助手回复重新解析并写入指定阶段产物 */
   onReExtractStage?: (stageId: number) => void;
   onArtifactUpsert?: (patch: Omit<Artifact, "updatedAt"> & { updatedAt?: string }) => void;
@@ -32,19 +29,20 @@ interface Props {
   pipelineProgress?: PipelineProgress | null;
   onPausePipeline?: () => void;
   onResumePipeline?: () => void;
+  /** 立项《创作思路确认书》；打包 ZIP 时写入 `00-创作思路确认书.md`，且仅有此文稿时也可导出 */
+  creativeBrief?: string;
+  /** 系列圣经；打包 ZIP 时写入 `系列圣经（SSOT）.md` */
+  seriesBible?: string;
 }
 
 export default function ArtifactPanel({
   projectName,
   hasProject,
   artifacts,
-  snapshots,
   currentStage,
   viewStage,
   collapsed,
   onToggle,
-  onRestore,
-  onCreateSnapshot,
   onReExtractStage,
   onArtifactUpsert,
   onArtifactRemove,
@@ -55,22 +53,35 @@ export default function ArtifactPanel({
   pipelineProgress,
   onPausePipeline,
   onResumePipeline,
+  creativeBrief = "",
+  seriesBible = "",
 }: Props) {
   const [exporting, setExporting] = useState(false);
   const [statsOpen, setStatsOpen] = useState(false);
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsResult, setStatsResult] = useState<string | null>(null);
-  const stage5Artifacts = artifacts.filter((a) => a.stage === 5);
+  const stage5Artifacts = artifacts.filter((a) => a.stage === 7);
   const canEpisodeCheck = hasProject && stage5Artifacts.length > 0;
 
   const stageCount = new Set(artifacts.map((a) => a.stage)).size;
-  const canExport = hasProject && artifacts.length > 0 && !exporting;
+  const hasStructuredStage5Episodes = artifacts.some(
+    (a) => a.stage === 7 && !a.parentKey && /^ep\d+$/u.test(a.subKey)
+  );
+  const hasBriefForExport = Boolean(creativeBrief.trim());
+  const hasBibleForExport = Boolean(seriesBible.trim());
+  const canExport =
+    hasProject &&
+    (artifacts.length > 0 || hasBriefForExport || hasBibleForExport) &&
+    !exporting;
 
   async function handleExportZip() {
     if (!canExport) return;
     setExporting(true);
     try {
-      await downloadArtifactsZip(projectName || "未命名项目", artifacts);
+      await downloadArtifactsZip(projectName || "未命名项目", artifacts, {
+        creativeBrief: creativeBrief.trim() || undefined,
+        seriesBible: seriesBible.trim() || undefined,
+      });
     } catch (e) {
       console.error(e);
       alert("导出失败，请稍后重试。");
@@ -120,11 +131,11 @@ export default function ArtifactPanel({
   const groupedByStage = (stageId: number) =>
     artifacts.filter((a) => a.stage === stageId);
 
-  const snapshotsForStage = (stageId: number) =>
-    snapshots.filter((sn) => sn.stage === stageId);
-
-  const viewStageSafe = Math.min(5, Math.max(1, viewStage)) as 1 | 2 | 3 | 4 | 5;
-  const kickoffReady = Boolean(getStudioAutoStageUserMessage(viewStageSafe)?.trim());
+  const viewStageSafe = Math.min(7, Math.max(1, viewStage)) as 1 | 2 | 3 | 4 | 5 | 6 | 7;
+  /** STAGE 6/7 由流水线自建 user 消息，不得依赖 studio-auto-kickoff 文案是否存在，否则「连续大纲」会被误禁用 */
+  const isPipelineKickoffStage = viewStageSafe === 6 || viewStageSafe === 7;
+  const kickoffReady =
+    isPipelineKickoffStage || Boolean(getStudioAutoStageUserMessage(viewStageSafe)?.trim());
   const startDisabled =
     !hasProject || !hasApiKey || chatLoading || !kickoffReady || !onStartThisStage;
   const startThisStageTitle = !hasApiKey
@@ -133,7 +144,11 @@ export default function ArtifactPanel({
       ? "对话生成中，请稍候"
       : !kickoffReady
         ? "本阶段暂无代发文案"
-        : `代发一条用户消息，开始「${STAGE_LABELS[viewStageSafe] ?? ""}」模板交付`;
+        : viewStageSafe === 6
+          ? "按 STAGE 4 事件集数范围启动分集大纲自动流水线（多轮对话，每批一批集）"
+          : viewStageSafe === 7
+            ? "从当前进度起自动逐集生成分集剧本"
+            : `代发一条用户消息，开始「${STAGE_LABELS[viewStageSafe] ?? ""}」模板交付`;
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
@@ -173,9 +188,15 @@ export default function ArtifactPanel({
             title={
               !hasProject
                 ? "请先选择项目"
-                : artifacts.length === 0
-                  ? "暂无产物可导出"
-                  : `打包下载 ZIP（${stageCount} 个阶段，每阶段一个 .md）`
+                : artifacts.length === 0 && !hasBriefForExport && !hasBibleForExport
+                  ? "暂无产物、圣经与确认书可导出"
+                  : artifacts.length === 0
+                    ? `打包下载 ZIP（立项文档${hasBibleForExport ? "含圣经" : ""}${hasBriefForExport ? "含确认书" : ""}）`
+                    : hasBriefForExport || hasBibleForExport
+                      ? `打包下载 ZIP（含立项文档 + ${stageCount} 个阶段）`
+                      : hasStructuredStage5Episodes
+                        ? `打包下载 ZIP（STAGE1–4 各一个 .md；STAGE5 为「05-分集剧本」文件夹，每集单独 .md）`
+                        : `打包下载 ZIP（${stageCount} 个阶段，每阶段一个 .md）`
             }
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -184,16 +205,6 @@ export default function ArtifactPanel({
                 strokeLinejoin="round"
                 d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"
               />
-            </svg>
-          </button>
-          <button
-            onClick={onCreateSnapshot}
-            className="rounded p-1 text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-300"
-            title="创建快照"
-          >
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
             </svg>
           </button>
           <button
@@ -223,9 +234,7 @@ export default function ArtifactPanel({
             stageId={viewStage}
             stageLabel={STAGE_LABELS[viewStage] ?? STAGES.find((st) => st.id === viewStage)?.label ?? ""}
             artifacts={groupedByStage(viewStage)}
-            stageSnapshots={snapshotsForStage(viewStage)}
             isActive={currentStage === viewStage}
-            onRestoreSnapshot={onRestore}
             onReExtractStage={onReExtractStage}
             onArtifactUpsert={onArtifactUpsert}
             onArtifactRemove={onArtifactRemove}

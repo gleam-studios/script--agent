@@ -6,8 +6,10 @@ import {
   STAGE2_FIXED_SLOTS,
   STAGE3_SLOTS,
   STAGE4_FIXED_SLOTS,
+  STAGE5_CATEGORY_SLOTS,
+  STAGE6_OUTLINE_PREFIX,
 } from "@/lib/stage-slot-schema";
-import { slugifyCharName } from "@/lib/artifact-mutations";
+import { compareStage6SubKeys, slugifyCharName } from "@/lib/artifact-mutations";
 import ArtifactSlotEditor from "./ArtifactSlotEditor";
 
 interface Props {
@@ -70,27 +72,21 @@ export default function StageFlatManual({ stageId, artifacts, onUpsert, onRemove
           );
         })}
         {extras.map((x) => (
-          <div key={x.subKey} className="relative">
-            <ArtifactSlotEditor
-              label={x.label || x.subKey}
-              value={x.content}
-              onCommit={(content) =>
-                onUpsert({
-                  stage: 1,
-                  subKey: x.subKey,
-                  label: x.label,
-                  content,
-                })
-              }
-            />
-            <button
-              type="button"
-              onClick={() => onRemove(1, x.subKey)}
-              className="absolute right-2 top-2 text-[10px] text-zinc-600 hover:text-rose-500"
-            >
-              移除条目
-            </button>
-          </div>
+          <ArtifactSlotEditor
+            key={x.subKey}
+            label={x.label || x.subKey}
+            value={x.content}
+            onCommit={(content) =>
+              onUpsert({
+                stage: 1,
+                subKey: x.subKey,
+                label: x.label,
+                content,
+              })
+            }
+            onRemove={() => onRemove(1, x.subKey)}
+            removeLabel="移除条目"
+          />
         ))}
       </div>
     );
@@ -125,27 +121,21 @@ export default function StageFlatManual({ stageId, artifacts, onUpsert, onRemove
           );
         })}
         {chars.map((x) => (
-          <div key={x.subKey} className="relative">
-            <ArtifactSlotEditor
-              label={x.label}
-              value={x.content}
-              onCommit={(content) =>
-                onUpsert({
-                  stage: 2,
-                  subKey: x.subKey,
-                  label: x.label,
-                  content,
-                })
-              }
-            />
-            <button
-              type="button"
-              onClick={() => onRemove(2, x.subKey)}
-              className="absolute right-2 top-2 text-[10px] text-zinc-600 hover:text-rose-500"
-            >
-              移除
-            </button>
-          </div>
+          <ArtifactSlotEditor
+            key={x.subKey}
+            label={x.label}
+            value={x.content}
+            onCommit={(content) =>
+              onUpsert({
+                stage: 2,
+                subKey: x.subKey,
+                label: x.label,
+                content,
+              })
+            }
+            onRemove={() => onRemove(2, x.subKey)}
+            removeLabel="移除"
+          />
         ))}
         <div className="flex flex-col gap-1.5 sm:flex-row">
           <button
@@ -190,27 +180,21 @@ export default function StageFlatManual({ stageId, artifacts, onUpsert, onRemove
             !x.subKey.startsWith("char_") &&
             !x.subKey.startsWith("supporting_")
         ).map((x) => (
-          <div key={x.subKey} className="relative">
-            <ArtifactSlotEditor
-              label={x.label || x.subKey}
-              value={x.content}
-              onCommit={(content) =>
-                onUpsert({
-                  stage: 2,
-                  subKey: x.subKey,
-                  label: x.label,
-                  content,
-                })
-              }
-            />
-            <button
-              type="button"
-              onClick={() => onRemove(2, x.subKey)}
-              className="absolute right-2 top-2 text-[10px] text-zinc-600 hover:text-rose-500"
-            >
-              移除条目
-            </button>
-          </div>
+          <ArtifactSlotEditor
+            key={x.subKey}
+            label={x.label || x.subKey}
+            value={x.content}
+            onCommit={(content) =>
+              onUpsert({
+                stage: 2,
+                subKey: x.subKey,
+                label: x.label,
+                content,
+              })
+            }
+            onRemove={() => onRemove(2, x.subKey)}
+            removeLabel="移除条目"
+          />
         ))}
       </div>
     );
@@ -238,27 +222,21 @@ export default function StageFlatManual({ stageId, artifacts, onUpsert, onRemove
           );
         })}
         {a.filter((x) => !STAGE3_SLOTS.some((s) => s.subKey === x.subKey)).map((x) => (
-          <div key={x.subKey} className="relative">
-            <ArtifactSlotEditor
-              label={x.label || x.subKey}
-              value={x.content}
-              onCommit={(content) =>
-                onUpsert({
-                  stage: 3,
-                  subKey: x.subKey,
-                  label: x.label,
-                  content,
-                })
-              }
-            />
-            <button
-              type="button"
-              onClick={() => onRemove(3, x.subKey)}
-              className="absolute right-2 top-2 text-[10px] text-zinc-600 hover:text-rose-500"
-            >
-              移除条目
-            </button>
-          </div>
+          <ArtifactSlotEditor
+            key={x.subKey}
+            label={x.label || x.subKey}
+            value={x.content}
+            onCommit={(content) =>
+              onUpsert({
+                stage: 3,
+                subKey: x.subKey,
+                label: x.label,
+                content,
+              })
+            }
+            onRemove={() => onRemove(3, x.subKey)}
+            removeLabel="移除条目"
+          />
         ))}
       </div>
     );
@@ -308,27 +286,21 @@ export default function StageFlatManual({ stageId, artifacts, onUpsert, onRemove
           + 添加核心事件 {maxEv + 1}
         </button>
         {extras.map((x) => (
-          <div key={x.subKey} className="relative">
-            <ArtifactSlotEditor
-              label={x.label || x.subKey}
-              value={x.content}
-              onCommit={(content) =>
-                onUpsert({
-                  stage: 4,
-                  subKey: x.subKey,
-                  label: x.label,
-                  content,
-                })
-              }
-            />
-            <button
-              type="button"
-              onClick={() => onRemove(4, x.subKey)}
-              className="absolute right-2 top-2 text-[10px] text-zinc-600 hover:text-rose-500"
-            >
-              移除条目
-            </button>
-          </div>
+          <ArtifactSlotEditor
+            key={x.subKey}
+            label={x.label || x.subKey}
+            value={x.content}
+            onCommit={(content) =>
+              onUpsert({
+                stage: 4,
+                subKey: x.subKey,
+                label: x.label,
+                content,
+              })
+            }
+            onRemove={() => onRemove(4, x.subKey)}
+            removeLabel="移除条目"
+          />
         ))}
         {STAGE4_FIXED_SLOTS.map((slot) => {
           const art = a.find((x) => x.subKey === slot.subKey);
@@ -349,6 +321,140 @@ export default function StageFlatManual({ stageId, artifacts, onUpsert, onRemove
             />
           );
         })}
+      </div>
+    );
+  }
+
+  if (stageId === 5) {
+    return (
+      <div className="space-y-2">
+        {STAGE5_CATEGORY_SLOTS.map((slot) => {
+          const art = a.find((x) => x.subKey === slot.subKey);
+          return (
+            <ArtifactSlotEditor
+              key={slot.subKey}
+              label={slot.label}
+              value={art?.content ?? ""}
+              rows={8}
+              onCommit={(content) =>
+                onUpsert({
+                  stage: 5,
+                  subKey: slot.subKey,
+                  label: slot.label,
+                  content,
+                })
+              }
+            />
+          );
+        })}
+      </div>
+    );
+  }
+
+  if (stageId === 6) {
+    const outlines = a
+      .filter((x) => x.subKey.startsWith(STAGE6_OUTLINE_PREFIX) && !x.parentKey)
+      .sort((x, y) => compareStage6SubKeys(x.subKey, y.subKey));
+    const outlineKeys = new Set(outlines.map((x) => x.subKey));
+    const subItems = a.filter(
+      (x) => x.parentKey && outlineKeys.has(x.parentKey)
+    );
+    const extras = a.filter(
+      (x) =>
+        !x.subKey.startsWith(STAGE6_OUTLINE_PREFIX) &&
+        !(x.parentKey && outlineKeys.has(x.parentKey))
+    );
+
+    function maxOutlineEpNum(): number {
+      let max = 0;
+      for (const o of outlines) {
+        const m = /outline_ep(\d+)/.exec(o.subKey);
+        if (m) max = Math.max(max, parseInt(m[1], 10) || 0);
+      }
+      return max;
+    }
+
+    return (
+      <div className="space-y-2">
+        {outlines.map((ep) => {
+          const children = subItems
+            .filter((x) => x.parentKey === ep.subKey)
+            .sort((x, y) => compareStage6SubKeys(x.subKey, y.subKey));
+          return (
+            <div key={ep.subKey}>
+              <ArtifactSlotEditor
+                label={ep.label || ep.subKey}
+                value={ep.content}
+                rows={6}
+                onCommit={(content) =>
+                  onUpsert({
+                    stage: 6,
+                    subKey: ep.subKey,
+                    label: ep.label,
+                    content,
+                  })
+                }
+                onRemove={() => onRemove(6, ep.subKey)}
+                removeLabel="移除"
+              />
+              {children.length > 0 && (
+                <div className="ml-4 mt-1 space-y-1.5 border-l border-zinc-800 pl-3">
+                  {children.map((sub) => (
+                    <ArtifactSlotEditor
+                      key={sub.subKey}
+                      label={sub.label || sub.subKey}
+                      value={sub.content}
+                      rows={3}
+                      onCommit={(content) =>
+                        onUpsert({
+                          stage: 6,
+                          subKey: sub.subKey,
+                          label: sub.label,
+                          content,
+                          parentKey: sub.parentKey,
+                        })
+                      }
+                      onRemove={() => onRemove(6, sub.subKey)}
+                      removeLabel="移除"
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+        <button
+          type="button"
+          onClick={() => {
+            const n = maxOutlineEpNum() + 1;
+            onUpsert({
+              stage: 6,
+              subKey: `outline_ep${n}`,
+              label: `第${n}集 大纲`,
+              content: "",
+            });
+          }}
+          className="w-full rounded-lg border border-dashed border-zinc-700 py-2 text-[11px] text-zinc-500 hover:border-zinc-600 hover:text-zinc-300"
+        >
+          + 添加第{maxOutlineEpNum() + 1}集大纲
+        </button>
+        {extras.map((x) => (
+          <ArtifactSlotEditor
+            key={x.subKey}
+            label={x.label || x.subKey}
+            value={x.content}
+            onCommit={(content) =>
+              onUpsert({
+                stage: 6,
+                subKey: x.subKey,
+                label: x.label,
+                content,
+              })
+            }
+            onRemove={() => onRemove(6, x.subKey)}
+            removeLabel="移除条目"
+          />
+        ))}
       </div>
     );
   }

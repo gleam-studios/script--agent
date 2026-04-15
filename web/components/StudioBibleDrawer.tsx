@@ -1,17 +1,25 @@
 "use client";
 
 import { useState } from "react";
-import type { Artifact, Snapshot } from "@/lib/types";
-import { diffBible, formatBibleDiffForDisplay } from "@/lib/bible-diff";
+import type { Artifact, Settings } from "@/lib/types";
 import { auditBibleVsCast } from "@/lib/bible-audit";
+import { downloadSeriesBibleMarkdownFile } from "@/lib/export-artifacts";
+import ArtifactSlotEditor from "./ArtifactSlotEditor";
 
 interface Props {
   open: boolean;
   onClose: () => void;
   hasProject: boolean;
+  projectId: string;
+  projectName: string;
   seriesBible: string;
+  /** 有则侧栏可触发 LLM 补写圣经 */
+  creativeBrief?: string;
+  settings: Settings;
+  /** 编剧室是否已有对话或产物（须传 allowWithProgress 才能生成） */
+  hasStudioProgress?: boolean;
+  onOpenSettings?: () => void;
   artifacts: Artifact[];
-  snapshots: Snapshot[];
   onSeriesBibleChange: (next: string) => void;
 }
 
@@ -19,45 +27,81 @@ export default function StudioBibleDrawer({
   open,
   onClose,
   hasProject,
+  projectId,
+  projectName,
+  creativeBrief = "",
+  settings,
+  hasStudioProgress = false,
+  onOpenSettings,
   seriesBible,
   artifacts,
-  snapshots,
   onSeriesBibleChange,
 }: Props) {
-  const [bibleDiffOpen, setBibleDiffOpen] = useState(false);
-  const [bibleDiffText, setBibleDiffText] = useState("");
-  const [insertingSkeleton, setInsertingSkeleton] = useState(false);
+  const [llmBibleLoading, setLlmBibleLoading] = useState(false);
 
   const auditIssues = hasProject ? auditBibleVsCast(seriesBible, artifacts) : [];
+  const bibleEmpty = !seriesBible.trim();
+  const hasBrief = Boolean(creativeBrief.trim());
+  const canLlmFillBible =
+    hasProject && bibleEmpty && hasBrief && Boolean(settings.apiKey);
+  const canLlmRewriteBible = hasProject && !bibleEmpty && hasBrief && Boolean(settings.apiKey);
 
-  async function handleInsertSkeleton() {
-    if (!hasProject) return;
-    if (seriesBible.trim().length > 0) {
-      if (!confirm("当前圣经非空，插入骨架将覆盖全文，确定吗？")) return;
-    }
-    setInsertingSkeleton(true);
+  async function handleLlmGenerateBible() {
+    if (!canLlmFillBible || !projectId) return;
+    setLlmBibleLoading(true);
     try {
-      const res = await fetch("/api/bible-skeleton");
-      const data = (await res.json()) as { content?: string; error?: string };
-      if (!res.ok) throw new Error(data.error || "读取失败");
-      onSeriesBibleChange(data.content ?? "");
+      const res = await fetch("/api/onboarding/generate-series-bible", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId,
+          settings,
+          allowWithProgress: hasStudioProgress,
+        }),
+      });
+      const data = (await res.json()) as { error?: string; project?: { seriesBible?: string } };
+      if (!res.ok) throw new Error(data.error || res.statusText);
+      const next = (data.project?.seriesBible ?? "").trim();
+      if (!next) throw new Error("未返回系列圣经");
+      onSeriesBibleChange(next);
     } catch (e) {
-      alert(e instanceof Error ? e.message : "插入失败");
+      alert(e instanceof Error ? e.message : "生成失败");
     } finally {
-      setInsertingSkeleton(false);
+      setLlmBibleLoading(false);
     }
   }
 
-  function handleCompareBibleToLastSnapshot() {
-    if (snapshots.length < 1) {
-      alert("尚无快照：请先创建快照后再对比。");
+  async function handleLlmRewriteBible() {
+    if (!canLlmRewriteBible || !projectId) return;
+    if (
+      !confirm(
+        "将用 LLM 根据《创作思路确认书》重新生成系列圣经，并覆盖当前侧栏中的全部正文。是否继续？"
+      )
+    ) {
       return;
     }
-    const last = snapshots[snapshots.length - 1];
-    const baseline = last.seriesBible ?? "";
-    const lines = diffBible(baseline, seriesBible);
-    setBibleDiffText(formatBibleDiffForDisplay(lines));
-    setBibleDiffOpen(true);
+    setLlmBibleLoading(true);
+    try {
+      const res = await fetch("/api/onboarding/generate-series-bible", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId,
+          settings,
+          replaceExisting: true,
+          allowWithProgress: true,
+        }),
+      });
+      const data = (await res.json()) as { error?: string; project?: { seriesBible?: string } };
+      if (!res.ok) throw new Error(data.error || res.statusText);
+      const next = (data.project?.seriesBible ?? "").trim();
+      if (!next) throw new Error("未返回系列圣经");
+      onSeriesBibleChange(next);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "重新生成失败");
+    } finally {
+      setLlmBibleLoading(false);
+    }
   }
 
   if (!open) return null;
@@ -89,32 +133,69 @@ export default function StudioBibleDrawer({
         </div>
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-4">
           <p className="mb-3 shrink-0 text-[10px] leading-relaxed text-zinc-500">
-            项目内设定真源；与全局 knowledge/03 模板区分。对话与圣经冲突时以本正文为准。
+            项目内设定真源；对话与圣经冲突时以本正文为准。默认 Markdown 预览，与产物记录槽位相同，点「编辑」修改。
           </p>
+          {bibleEmpty ? (
+            <div className="mb-3 shrink-0 rounded-lg border border-indigo-900/50 bg-indigo-950/30 px-2.5 py-2 text-[10px] leading-relaxed text-indigo-100/90">
+              <p className="mb-1.5 text-indigo-200/80">当前尚无系列圣经正文。</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  disabled={!canLlmFillBible || llmBibleLoading}
+                  onClick={() => void handleLlmGenerateBible()}
+                  className="rounded-md bg-indigo-600 px-2.5 py-1 text-[11px] font-medium text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {llmBibleLoading ? "生成中…" : "用 LLM 生成系列圣经"}
+                </button>
+                {!settings.apiKey ? (
+                  <button
+                    type="button"
+                    onClick={() => onOpenSettings?.()}
+                    className="text-[11px] text-indigo-300 underline hover:text-indigo-200"
+                  >
+                    去填写 API Key
+                  </button>
+                ) : null}
+                {!creativeBrief.trim() ? (
+                  <span className="text-zinc-500">需项目已有《创作思路确认书》。</span>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
           <div className="mb-3 flex shrink-0 flex-wrap gap-2">
+            {canLlmRewriteBible ? (
+              <button
+                type="button"
+                disabled={llmBibleLoading}
+                onClick={() => void handleLlmRewriteBible()}
+                className="rounded bg-indigo-700 px-2 py-1 text-[11px] font-medium text-white transition hover:bg-indigo-600 disabled:opacity-50"
+                title="覆盖当前正文，按确认书重新生成完整圣经"
+              >
+                {llmBibleLoading ? "生成中…" : "用 LLM 重新生成系列圣经"}
+              </button>
+            ) : null}
             <button
               type="button"
-              disabled={!hasProject || insertingSkeleton}
-              onClick={() => void handleInsertSkeleton()}
-              className="rounded bg-zinc-700 px-2 py-1 text-[11px] text-zinc-200 disabled:opacity-50"
+              disabled={!hasProject || !seriesBible.trim()}
+              onClick={() =>
+                downloadSeriesBibleMarkdownFile(projectName || "未命名项目", seriesBible)
+              }
+              className="rounded border border-zinc-600 px-2 py-1 text-[11px] text-zinc-200 disabled:cursor-not-allowed disabled:opacity-40"
+              title="下载为 Markdown"
             >
-              {insertingSkeleton ? "读取中…" : "插入骨架（knowledge/03）"}
-            </button>
-            <button
-              type="button"
-              disabled={!hasProject}
-              onClick={handleCompareBibleToLastSnapshot}
-              className="rounded bg-zinc-700 px-2 py-1 text-[11px] text-zinc-200 disabled:opacity-50"
-            >
-              与上次快照时的圣经对比
+              导出 .md
             </button>
           </div>
-          <textarea
-            value={seriesBible}
-            onChange={(e) => onSeriesBibleChange(e.target.value)}
-            placeholder="在此维护世界观、主线铁律、里程碑等…"
-            className="min-h-0 flex-1 resize-none rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1.5 font-mono text-[11px] leading-relaxed text-zinc-200 placeholder:text-zinc-600 focus:border-indigo-600/50 focus:outline-none focus:ring-1 focus:ring-indigo-600/30"
-          />
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <ArtifactSlotEditor
+              label="系列圣经正文"
+              value={seriesBible}
+              onCommit={onSeriesBibleChange}
+              rows={28}
+              textareaClassName="min-h-[min(22rem,42vh)]"
+              placeholder="（空）点击「编辑」填写；Markdown。也可用上方「用 LLM 生成 / 重新生成」。"
+            />
+          </div>
           {auditIssues.length > 0 ? (
             <div className="mt-3 shrink-0 rounded border border-amber-900/60 bg-amber-950/20 px-2 py-1.5 text-[10px] text-amber-100/90">
               <span className="font-medium">人物名粗检：</span>
@@ -123,35 +204,6 @@ export default function StudioBibleDrawer({
           ) : null}
         </div>
       </div>
-
-      {bibleDiffOpen && (
-        <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4"
-          onClick={() => setBibleDiffOpen(false)}
-          role="presentation"
-        >
-          <div
-            className="max-h-[80vh] w-full max-w-lg overflow-hidden rounded-xl border border-zinc-700 bg-zinc-900 p-4 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            aria-label="圣经差异"
-          >
-            <div className="mb-2 flex items-start justify-between gap-2 text-xs text-zinc-300">
-              <span>与上次快照时的圣经对比（- 删 / + 增）</span>
-              <button
-                type="button"
-                className="shrink-0 text-zinc-500 hover:text-white"
-                onClick={() => setBibleDiffOpen(false)}
-              >
-                关闭
-              </button>
-            </div>
-            <pre className="max-h-[60vh] overflow-auto whitespace-pre-wrap font-mono text-[10px] leading-relaxed text-zinc-300">
-              {bibleDiffText || "（无差异）"}
-            </pre>
-          </div>
-        </div>
-      )}
     </>
   );
 }

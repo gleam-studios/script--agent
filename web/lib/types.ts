@@ -53,17 +53,6 @@ export interface Artifact {
   parentKey?: string;
 }
 
-export interface Snapshot {
-  id: string;
-  label: string;
-  createdAt: string;
-  stage: number;
-  messageCount: number;
-  artifacts: Artifact[];
-  /** 快照时刻的项目系列圣经副本（旧数据可无） */
-  seriesBible?: string;
-}
-
 export interface Project {
   id: string;
   name: string;
@@ -72,7 +61,6 @@ export interface Project {
   currentStage: number;
   messages: Message[];
   artifacts: Artifact[];
-  snapshots: Snapshot[];
   /** 项目级系列圣经（设定真源，与全局 knowledge/03 模板区分） */
   seriesBible?: string;
   /** 工程侧已验收的最高阶段（0 表示尚未确认） */
@@ -119,7 +107,9 @@ export const STAGES = [
   { id: 2, label: "人物", key: "characters" },
   { id: 3, label: "三幕", key: "structure" },
   { id: 4, label: "事件", key: "events" },
-  { id: 5, label: "分集", key: "episodes" },
+  { id: 5, label: "设定集", key: "settings" },
+  { id: 6, label: "大纲", key: "outlines" },
+  { id: 7, label: "分集", key: "episodes" },
 ] as const;
 
 export const STAGE_LABELS: Record<number, string> = {
@@ -127,5 +117,7 @@ export const STAGE_LABELS: Record<number, string> = {
   2: "核心人物小传",
   3: "三幕式结构",
   4: "核心事件",
-  5: "分集剧本",
+  5: "设定集",
+  6: "分集大纲",
+  7: "分集剧本",
 };

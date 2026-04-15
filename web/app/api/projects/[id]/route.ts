@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { getProject, saveProject, deleteProject } from "@/lib/project-store";
+import type { Project } from "@/lib/types";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -19,10 +20,12 @@ export async function PUT(req: NextRequest, ctx: RouteContext) {
     return Response.json({ error: "项目不存在" }, { status: 404 });
   }
 
-  const updates = await req.json();
-  const merged = { ...existing, ...updates, id: existing.id };
-  saveProject(merged);
-  return Response.json(merged);
+  const updates = (await req.json()) as Record<string, unknown>;
+  const merged = { ...existing, ...updates, id: existing.id } as Record<string, unknown>;
+  delete merged.snapshots;
+  const project = merged as unknown as Project;
+  saveProject(project);
+  return Response.json(project);
 }
 
 export async function DELETE(_req: NextRequest, ctx: RouteContext) {

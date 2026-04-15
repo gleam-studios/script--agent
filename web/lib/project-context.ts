@@ -1,10 +1,13 @@
+import { compareStage6SubKeys } from "./artifact-mutations";
 import type { Artifact, Message, ProjectMeta } from "./types";
 import { detectStage } from "./stage-detect";
-import { evaluateStageGate } from "./stage-gate";
-import { CREATIVE_BRIEF_CONTEXT_CHARS } from "./source-materials";
+import { evaluateStageGate, parseEventEpisodeRange } from "./stage-gate";
+import { parseTargetEpisodeCount } from "./stage5-pipeline";
+import { CREATIVE_BRIEF_CONTEXT_CHARS, SERIES_BIBLE_CONTEXT_CHARS } from "./source-materials";
 
 const STAGE1_OUTLINE_EXCERPT = 500;
 const STAGE3_ACT_EXCERPT = 200;
+const STAGE4_EVENT_DETAIL_EXCERPT = 1000;
 
 function truncate(s: string, max: number): string {
   const t = s.trim();
@@ -14,7 +17,7 @@ function truncate(s: string, max: number): string {
 
 /**
  * 将 STAGE 1-4 产物拼成供工程注入的摘要（约 2000 字以内），
- * 仅当已进入 STAGE 5 且 STAGE 4 已通过时注入。
+ * 当已进入 STAGE 5+ 且 STAGE 4 已通过时注入。
  */
 function buildStage14Summary(artifacts: Artifact[]): string {
   const lines: string[] = [];
@@ -57,13 +60,65 @@ function buildStage14Summary(artifacts: Artifact[]): string {
   if (s4Events.length > 0) {
     const eventNames = s4Events.map((a) => {
       const nameMatch = a.content.match(/事件名称[：:]\s*(.+)/);
-      return nameMatch ? `${a.label}：${nameMatch[1].trim()}` : a.label;
+      const range = parseEventEpisodeRange(a.content);
+      const rangeStr = range ? `(${range.from}~${range.to}集)` : "";
+      const name = nameMatch ? nameMatch[1].trim() : "";
+      return `${a.label}${rangeStr}${name ? `：${name}` : ""}`;
     });
     lines.push(`[S4 核心事件链] ${eventNames.join(" → ")}`);
+
+    for (const ev of s4Events) {
+      const range = parseEventEpisodeRange(ev.content);
+      const rangeStr = range ? `(${range.from}~${range.to}集)` : "";
+      lines.push(`[S4 ${ev.label}详情${rangeStr}]\n${truncate(ev.content, STAGE4_EVENT_DETAIL_EXCERPT)}`);
+    }
   }
 
   if (lines.length === 0) return "";
   return `\n[已确认产物摘要（STAGE 1-4，须严格遵守人物名/时间线/因果关系/事件链）]\n${lines.join("\n")}`;
+}
+
+/**
+ * 从 STAGE 5 设定集产物中构建资产清单注入（∆分类 + @名称列表）。
+ */
+function buildSettingsAssetList(artifacts: Artifact[]): string {
+  const s5 = artifacts.filter((a) => a.stage === 5);
+  if (s5.length === 0) return "";
+
+  const cats = s5.filter((a) => a.subKey.startsWith("cat_"));
+  if (cats.length === 0) return "";
+
+  const lines: string[] = [];
+  for (const cat of cats) {
+    const atRe = /@([^\s:：,，;；\n@∆]+)/g;
+    const names: string[] = [];
+    let m: RegExpExecArray | null;
+    while ((m = atRe.exec(cat.content)) !== null) {
+      const n = m[1].trim();
+      if (n) names.push(`@${n}`);
+    }
+    lines.push(`${cat.label}：${names.join("、") || "（暂无）"}`);
+  }
+
+  if (lines.length === 0) return "";
+  return `\n[设定集资产清单（STAGE 5，须严格按 @名称引用，不得偏差）]\n${lines.join("\n")}`;
+}
+
+/**
+ * 从 STAGE 6 分集大纲产物中构建摘要（各集一句概述）。
+ * full=true 时输出所有大纲（用于 STAGE 7）；
+ * full=false 时仅输出已有的部分大纲（用于 STAGE 6 流水线内部批次衔接）。
+ */
+function buildOutlineSummary(artifacts: Artifact[], partial = false): string {
+  const s6 = artifacts.filter(
+    (a) => a.stage === 6 && a.subKey.startsWith("outline_ep") && !a.parentKey
+  );
+  if (s6.length === 0) return "";
+  const lines = s6
+    .sort((a, b) => compareStage6SubKeys(a.subKey, b.subKey))
+    .map((a) => `[S6 ${a.label}] ${truncate(a.content, 200)}`);
+  const tag = partial ? "分集大纲已完成部分（STAGE 6 流水线中）" : "分集大纲摘要（STAGE 6）";
+  return `\n[${tag}]\n${lines.join("\n")}`;
 }
 
 /**
@@ -79,9 +134,19 @@ export function buildProjectContext(params: {
   originMode?: "original" | "adaptation";
   /** 改编：原文分析极短摘要（控 token） */
   sourceAnalysisExcerpt?: string;
+  /** 项目级系列圣经；完整正文以侧栏为准，此处为节录注入 */
+  seriesBible?: string;
 }): string {
-  const { messages, artifacts, maxApprovedStage, meta, creativeBrief, originMode, sourceAnalysisExcerpt } =
-    params;
+  const {
+    messages,
+    artifacts,
+    maxApprovedStage,
+    meta,
+    creativeBrief,
+    originMode,
+    sourceAnalysisExcerpt,
+    seriesBible,
+  } = params;
   const inferred = detectStage(messages);
   const approved = maxApprovedStage ?? 0;
 
@@ -117,8 +182,9 @@ export function buildProjectContext(params: {
     `[工程侧] 主创已在侧栏确认验收至 STAGE ${approved}（0 表示尚未确认）。当前对话最新推断阶段为 STAGE ${inferred || "未判定"}。`
   );
 
-  if (inferred >= 1 && inferred <= 5) {
-    const gate = evaluateStageGate(inferred, artifacts);
+  if (inferred >= 1 && inferred <= 7) {
+    const epCount = meta?.episodeCount ? parseTargetEpisodeCount(meta.episodeCount) ?? undefined : undefined;
+    const gate = evaluateStageGate(inferred, artifacts, epCount ? { episodeCount: epCount } : undefined);
     if (!gate.ok) {
       parts.push(
         `当前阶段产物未满足验收清单：${gate.items
@@ -135,10 +201,32 @@ export function buildProjectContext(params: {
     );
   }
 
-  parts.push(`系列圣经以侧栏「系列圣经」正文为准；与对话冲突时以圣经为准。`);
+  const bible = seriesBible?.trim();
+  if (bible) {
+    const excerpt = bible.slice(0, SERIES_BIBLE_CONTEXT_CHARS);
+    const more = bible.length > SERIES_BIBLE_CONTEXT_CHARS;
+    parts.push(
+      `[系列圣经（节录，须服从）] 与对话冲突时以圣经为准；侧栏为全文真源。以下为前 ${SERIES_BIBLE_CONTEXT_CHARS} 字${more ? "，后略" : ""}：${excerpt}${more ? "…" : ""}`
+    );
+  } else {
+    parts.push(`系列圣经以侧栏「系列圣经」正文为准；与对话冲突时以圣经为准。`);
+  }
 
   if (approved >= 4 && inferred >= 5) {
     parts.push(buildStage14Summary(artifacts));
+  }
+
+  if (approved >= 5 && inferred >= 6) {
+    parts.push(buildSettingsAssetList(artifacts));
+  }
+
+  if (approved >= 5 && inferred === 6) {
+    const partial = buildOutlineSummary(artifacts, true);
+    if (partial) parts.push(partial);
+  }
+
+  if (approved >= 6 && inferred >= 7) {
+    parts.push(buildOutlineSummary(artifacts));
   }
 
   return parts.join("");

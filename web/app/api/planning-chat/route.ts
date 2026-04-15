@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { fetchWithRetry } from "@/lib/fetch-with-retry";
 import { loadAdaptationPlannerPrompt, loadPlanningSessionPrompt } from "@/lib/prompt-loader";
 import type { Message, Settings } from "@/lib/types";
 
@@ -44,7 +45,7 @@ export async function POST(req: NextRequest) {
   const apiUrl = settings.apiUrl || "https://api.openai.com/v1/chat/completions";
 
   try {
-    const upstream = await fetch(apiUrl, {
+    const upstream = await fetchWithRetry(apiUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

@@ -10,7 +10,9 @@ import {
 } from "react";
 import type { Message, Settings } from "@/lib/types";
 import { stripThinkingForDisplay } from "@/lib/strip-thinking";
+import { isImeCompositionKeyEvent } from "@/lib/ime-enter";
 import MessageBubble from "./MessageBubble";
+import { useMessagesScrollEnd } from "@/hooks/useMessagesScrollEnd";
 
 export type ChatWindowHandle = {
   /** 以当前对话为上下文代发一条 user 并请求助手回复；返回助手回复文本（空字符串表示失败） */
@@ -48,7 +50,7 @@ const ChatWindow = forwardRef<ChatWindowHandle, Props>(function ChatWindow(
 ) {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const messagesScrollRef = useMessagesScrollEnd(messages);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const autoKickoffOnceRef = useRef(false);
   const messagesRef = useRef(messages);
@@ -60,14 +62,6 @@ const ChatWindow = forwardRef<ChatWindowHandle, Props>(function ChatWindow(
   useEffect(() => {
     onLoadingChange?.(isLoading);
   }, [isLoading, onLoadingChange]);
-
-  const scrollToBottom = useCallback(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, []);
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, scrollToBottom]);
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -220,10 +214,10 @@ const ChatWindow = forwardRef<ChatWindowHandle, Props>(function ChatWindow(
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      void handleSend();
-    }
+    if (e.key !== "Enter" || e.shiftKey) return;
+    if (isImeCompositionKeyEvent(e)) return;
+    e.preventDefault();
+    void handleSend();
   }
 
   const showEmptyHint = messages.length === 0;
@@ -237,7 +231,7 @@ const ChatWindow = forwardRef<ChatWindowHandle, Props>(function ChatWindow(
   return (
     <div className="flex h-full flex-col">
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-3 py-3">
+      <div ref={messagesScrollRef} className="flex-1 overflow-y-auto px-3 py-3">
         {showEmptyHint && (
           <div className="flex h-full items-center justify-center">
             <div className="text-center">
@@ -250,7 +244,6 @@ const ChatWindow = forwardRef<ChatWindowHandle, Props>(function ChatWindow(
           {messages.map((msg, i) => (
             <MessageBubble key={i} message={msg} />
           ))}
-          <div ref={bottomRef} />
         </div>
       </div>
 

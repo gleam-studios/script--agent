@@ -76,7 +76,7 @@ function episodeCardExcerpt(markdown: string, maxLen: number): string {
 }
 
 export default function EpisodeTreeEditor({ artifacts, onUpsert, onRemoveSubtree }: Props) {
-  const stage5 = useMemo(() => artifacts.filter((a) => a.stage === 5), [artifacts]);
+  const stage5 = useMemo(() => artifacts.filter((a) => a.stage === 7), [artifacts]);
   const [modalEpKey, setModalEpKey] = useState<string | null>(null);
 
   const epKeys = useMemo(() => {
@@ -114,7 +114,7 @@ export default function EpisodeTreeEditor({ artifacts, onUpsert, onRemoveSubtree
           type="button"
           onClick={() =>
             onUpsert({
-              stage: 5,
+              stage: 7,
               subKey: "ep1",
               label: "第1集",
               content: "",
@@ -148,7 +148,7 @@ export default function EpisodeTreeEditor({ artifacts, onUpsert, onRemoveSubtree
           onClick={() => {
             const n = nextEpisodeNum(stage5);
             onUpsert({
-              stage: 5,
+              stage: 7,
               subKey: `ep${n}`,
               label: `第${n}集`,
               content: "",
@@ -290,7 +290,7 @@ function EpisodeBlock({
         textareaClassName="min-h-[min(12rem,28vh)]"
         onCommit={(content) =>
           onUpsert({
-            stage: 5,
+            stage: 7,
             subKey: epKey,
             label: epLab,
             content,
@@ -317,7 +317,7 @@ function EpisodeBlock({
           const sn = nextSceneNum(epKey, all);
           const sk = `${epKey}.scene${sn}`;
           onUpsert({
-            stage: 5,
+            stage: 7,
             subKey: sk,
             parentKey: epKey,
             label: `${epLab} - 场次${sn}`,
@@ -341,7 +341,7 @@ function EpisodeBlock({
               rows={4}
               onCommit={(content) =>
                 onUpsert({
-                  stage: 5,
+                  stage: 7,
                   subKey: a.subKey,
                   parentKey: a.parentKey,
                   label: a.label,
@@ -409,7 +409,7 @@ function SceneBlock({
             textareaClassName="min-h-[min(10rem,22vh)]"
             onCommit={(content) =>
               onUpsert({
-                stage: 5,
+                stage: 7,
                 subKey: scene.subKey,
                 parentKey: epKey,
                 label: scene.label || `${epLab} - 场次${sn}`,
@@ -427,7 +427,7 @@ function SceneBlock({
                   rows={4}
                   onCommit={(content) =>
                     onUpsert({
-                      stage: 5,
+                      stage: 7,
                       subKey: mu.subKey,
                       parentKey: scene.subKey,
                       label: mu.label,
@@ -453,7 +453,7 @@ function SceneBlock({
               const mn = nextMuNum(scene.subKey, all);
               const mk = `${scene.subKey}.m${mn}`;
               onUpsert({
-                stage: 5,
+                stage: 7,
                 subKey: mk,
                 parentKey: scene.subKey,
                 label: `${epLab} - 场次${sn} - 幕${mn}`,

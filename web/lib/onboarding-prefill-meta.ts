@@ -8,6 +8,9 @@ import {
 } from "@/lib/source-materials";
 import type { Message, Project, ProjectMeta, Settings } from "@/lib/types";
 
+/** 「仅据确认书」预填时允许注入的最大字数（超出截断并标注） */
+export const PREFILL_FROM_BRIEF_MAX_CHARS = 64000;
+
 function excerpt(s: string, max: number): string {
   const t = s.trim();
   if (!t) return "";
@@ -59,13 +62,19 @@ function normalizeMeta(partial: Partial<ProjectMeta> | null, fallbackName: strin
   };
 }
 
+export type PrefillMetaOptions = {
+  /** 为 true 时仅以《创作思路确认书》长文为主构造用户消息，不再混入大段讨论/分析摘录 */
+  fromBriefOnly?: boolean;
+};
+
 /**
  * 根据项目上下文抽取立项元数据（与 /api/onboarding/prefill-meta 行为一致）。
  * 应在 creativeBrief 已写入后再调用，以便摘要中含最新创作思路。
  */
 export async function generatePrefillMetaFromProject(
   project: Project,
-  settings: Settings
+  settings: Settings,
+  options?: PrefillMetaOptions
 ): Promise<
   | { ok: true; meta: ProjectMeta }
   | { ok: false; error: string; meta: ProjectMeta; prefillWarning?: string }
@@ -82,20 +91,41 @@ export async function generatePrefillMetaFromProject(
     return { ok: false, error: "缺少 API Key", meta: emptyMeta };
   }
 
-  const ctxParts: string[] = [];
-  ctxParts.push("### 原文分析（摘录）");
-  ctxParts.push(excerpt(project.sourceAnalysis ?? "", ADAPTATION_SOURCE_ANALYSIS_INJECT_CHARS) || "（无）");
-  ctxParts.push("");
-  ctxParts.push("### 改编讨论（摘录）");
-  ctxParts.push(excerptMessages(project.adaptationMessages ?? [], ADAPTATION_DISCUSSION_FOR_PLANNER_CHARS) || "（无）");
-  ctxParts.push("");
-  ctxParts.push("### 规划师对话（摘录）");
-  ctxParts.push(excerptMessages(project.planningMessages ?? [], ADAPTATION_PLANNING_EXCERPT_CHARS) || "（无）");
-  ctxParts.push("");
-  ctxParts.push("### 创作思路摘要（摘录）");
-  ctxParts.push(excerpt(project.creativeBrief ?? "", CREATIVE_BRIEF_CONTEXT_CHARS * 3) || "（无）");
+  const fromBriefOnly = Boolean(options?.fromBriefOnly);
+  const effectiveBrief = (project.creativeBrief ?? "").trim();
+  if (fromBriefOnly && !effectiveBrief) {
+    return { ok: false, error: "缺少《创作思路确认书》", meta: emptyMeta };
+  }
 
-  const userContent = `请根据以下上下文抽取立项元数据 JSON：\n\n${ctxParts.join("\n")}`;
+  let userContent: string;
+  if (fromBriefOnly) {
+    const briefBody = excerpt(effectiveBrief, PREFILL_FROM_BRIEF_MAX_CHARS);
+    userContent = [
+      "请**主要**根据下列《创作思路确认书》抽取立项元数据 JSON 对象，字段含：",
+      "seriesTitle（剧名）、episodeCount（集数或区间描述）、episodeDurationMinutes（数字或 null）、",
+      "targetMarket、dialogueLanguage、extraNotes。",
+      "若确认书未明确某字段，可填空字符串或 null；不要编造与正文明显矛盾的信息。",
+      "仅输出 JSON（可用 ```json 围栏包裹），不要多余说明。",
+      "",
+      "### 《创作思路确认书》",
+      briefBody || "（无）",
+    ].join("\n");
+  } else {
+    const ctxParts: string[] = [];
+    ctxParts.push("### 原文分析（摘录）");
+    ctxParts.push(excerpt(project.sourceAnalysis ?? "", ADAPTATION_SOURCE_ANALYSIS_INJECT_CHARS) || "（无）");
+    ctxParts.push("");
+    ctxParts.push("### 改编讨论（摘录）");
+    ctxParts.push(excerptMessages(project.adaptationMessages ?? [], ADAPTATION_DISCUSSION_FOR_PLANNER_CHARS) || "（无）");
+    ctxParts.push("");
+    ctxParts.push("### 规划师对话（摘录）");
+    ctxParts.push(excerptMessages(project.planningMessages ?? [], ADAPTATION_PLANNING_EXCERPT_CHARS) || "（无）");
+    ctxParts.push("");
+    ctxParts.push("### 创作思路摘要（摘录）");
+    ctxParts.push(excerpt(project.creativeBrief ?? "", CREATIVE_BRIEF_CONTEXT_CHARS * 3) || "（无）");
+
+    userContent = `请根据以下上下文抽取立项元数据 JSON：\n\n${ctxParts.join("\n")}`;
+  }
 
   const result = await completeChatNonStream({
     settings,

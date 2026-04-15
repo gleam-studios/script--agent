@@ -30,7 +30,6 @@ export async function POST(req: NextRequest) {
     currentStage: 0,
     messages: [],
     artifacts: [],
-    snapshots: [],
     seriesBible: "",
     maxApprovedStage: 0,
     meta: emptyMeta(),

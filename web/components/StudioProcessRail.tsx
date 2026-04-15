@@ -15,6 +15,8 @@ interface Props {
   gateOverrideNote: string;
   /** 未达标仍标记（人工）；达标时由页面自动提升「已验至」 */
   onGateOverrideMark: (overrideNote?: string) => void | Promise<void>;
+  /** 项目总集数（从 meta 解析），用于精确 Gate 校验 */
+  episodeCount?: number;
 }
 
 function gateStatusClass(ok: boolean, hasItems: boolean): string {
@@ -30,11 +32,12 @@ export default function StudioProcessRail({
   maxApprovedStage,
   gateOverrideNote,
   onGateOverrideMark,
+  episodeCount,
 }: Props) {
   const [expandedStage, setExpandedStage] = useState<number | null>(1);
 
   const approvedShort =
-    maxApprovedStage >= 1 && maxApprovedStage <= 5
+    maxApprovedStage >= 1 && maxApprovedStage <= 7
       ? STAGES.find((s) => s.id === maxApprovedStage)?.label ?? "—"
       : "—";
 
@@ -63,8 +66,8 @@ export default function StudioProcessRail({
 
       <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-2 py-2">
         {STAGES.map((s) => {
-          const stage = s.id as 1 | 2 | 3 | 4 | 5;
-          const g = evaluateStageGate(stage, artifacts);
+          const stage = s.id as 1 | 2 | 3 | 4 | 5 | 6 | 7;
+          const g = evaluateStageGate(stage, artifacts, episodeCount ? { episodeCount } : undefined);
           const hasItems = g.items.length > 0;
           const longLabel = STAGE_LABELS[stage] || `阶段 ${stage}`;
           const viewingHere = viewStage === stage;
@@ -148,7 +151,7 @@ export default function StudioProcessRail({
                     </>
                   ) : null}
 
-                  {currentStage >= 1 && currentStage <= 5 && stage !== currentStage ? (
+                  {currentStage >= 1 && currentStage <= 7 && stage !== currentStage ? (
                     <p className="mb-1.5 mt-2 text-[8px] leading-relaxed text-zinc-600">
                       人工「未达标仍标」针对左侧对话推断阶段「
                       {STAGES.find((x) => x.id === currentStage)?.label ?? currentStage}
@@ -162,7 +165,7 @@ export default function StudioProcessRail({
                     <p className="text-[8px] font-medium text-zinc-600">未达标时</p>
                     <button
                       type="button"
-                      disabled={currentStage < 1 || (currentStage >= 1 && currentStage <= 5 && stage !== currentStage)}
+                      disabled={currentStage < 1 || (currentStage >= 1 && currentStage <= 7 && stage !== currentStage)}
                       onClick={() => {
                         const note = window.prompt(
                           "未达标仍标记：请填写原因（将写入工程记录）",

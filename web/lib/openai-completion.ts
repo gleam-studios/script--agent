@@ -1,4 +1,5 @@
 import type { Settings } from "./types";
+import { fetchWithRetry } from "./fetch-with-retry";
 
 export type ChatMsg = { role: "system" | "user" | "assistant"; content: string };
 
@@ -16,7 +17,7 @@ export async function completeChatNonStream(params: {
   }
   const apiUrl = settings.apiUrl || "https://api.openai.com/v1/chat/completions";
   try {
-    const upstream = await fetch(apiUrl, {
+    const upstream = await fetchWithRetry(apiUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

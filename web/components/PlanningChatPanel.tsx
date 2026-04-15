@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import type { Message, Settings } from "@/lib/types";
 import { stripThinkingForDisplay } from "@/lib/strip-thinking";
 import MessageBubble from "./MessageBubble";
+import { isImeCompositionKeyEvent } from "@/lib/ime-enter";
+import { useMessagesScrollEnd } from "@/hooks/useMessagesScrollEnd";
 
 interface Props {
   settings: Settings;
@@ -40,16 +42,8 @@ export default function PlanningChatPanel({
 }: Props) {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const messagesScrollRef = useMessagesScrollEnd(messages);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  const scrollToBottom = useCallback(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, []);
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, scrollToBottom]);
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -156,21 +150,21 @@ export default function PlanningChatPanel({
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      void handleSend();
-    }
+    if (e.key !== "Enter" || e.shiftKey) return;
+    if (isImeCompositionKeyEvent(e)) return;
+    e.preventDefault();
+    void handleSend();
   }
 
   const outerClass =
     layout === "fixedScroll"
-      ? "flex h-[min(420px,52vh)] max-h-[52vh] w-full flex-col overflow-hidden rounded-lg border border-zinc-700 bg-zinc-900/40"
+      ? "flex h-[min(560px,64vh)] max-h-[64vh] w-full flex-col overflow-hidden rounded-lg border border-zinc-700 bg-zinc-900/40"
       : "flex min-h-[320px] flex-1 flex-col rounded-lg border border-zinc-700 bg-zinc-900/40";
 
   return (
     <div className={outerClass}>
       <div className="shrink-0 border-b border-zinc-800 px-3 py-2 text-xs text-zinc-500">{headerTitle}</div>
-      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
+      <div ref={messagesScrollRef} className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
         {messages.length === 0 && (
           <p className="py-8 text-center text-xs text-zinc-600">{emptyHint}</p>
         )}
@@ -178,7 +172,6 @@ export default function PlanningChatPanel({
           {messages.map((msg, i) => (
             <MessageBubble key={i} message={msg} />
           ))}
-          <div ref={bottomRef} />
         </div>
       </div>
       <div className="shrink-0 border-t border-zinc-800 px-3 py-2">

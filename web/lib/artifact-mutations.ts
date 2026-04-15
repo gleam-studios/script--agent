@@ -4,6 +4,38 @@ export function artifactKey(a: Pick<Artifact, "stage" | "subKey">): string {
   return `${a.stage}:${a.subKey}`;
 }
 
+/**
+ * STAGE 6 分集大纲 subKey 排序：`outline_ep10` 须在 `outline_ep2` 之后（勿用 localeCompare）。
+ * 子键 `outline_ep3.hook_open` 先按集号，再按叙事顺序 assets → hook_open → summary → hook_end。
+ */
+export function compareStage6SubKeys(sa: string, sb: string): number {
+  const epNum = (s: string): number | null => {
+    const m = /^outline_ep(\d+)/u.exec(s);
+    return m ? parseInt(m[1], 10) : null;
+  };
+  const na = epNum(sa);
+  const nb = epNum(sb);
+  if (na != null && nb != null && na !== nb) return na - nb;
+  if (na != null && nb == null) return -1;
+  if (na == null && nb != null) return 1;
+  const suffix = (s: string) => {
+    const i = s.indexOf(".");
+    return i >= 0 ? s.slice(i + 1) : "";
+  };
+  const rank = (suf: string) => {
+    if (suf === "" || suf === undefined) return 0;
+    if (suf === "assets") return 1;
+    if (suf === "hook_open") return 2;
+    if (suf === "summary") return 3;
+    if (suf === "hook_end") return 4;
+    return 50;
+  };
+  const ra = rank(suffix(sa));
+  const rb = rank(suffix(sb));
+  if (ra !== rb) return ra - rb;
+  return sa.localeCompare(sb);
+}
+
 /** ISO 时间戳 */
 export function artifactNow(): string {
   return new Date().toISOString();
@@ -28,6 +60,9 @@ export function upsertArtifact(
   };
   return [...base, merged].sort((a, b) => {
     if (a.stage !== b.stage) return a.stage - b.stage;
+    if (a.stage === 6 && b.stage === 6) {
+      return compareStage6SubKeys(a.subKey || "", b.subKey || "");
+    }
     return (a.subKey || "").localeCompare(b.subKey || "");
   });
 }
