@@ -48,6 +48,7 @@ STAGE 7 分集剧本 (Episode Scripts)
 
 - **规格与连载规则**：`knowledge/`（系统提示已注入 `01`～`07`）。
 - **分步工作流**：`skills/`（系统提示已注入；入口 `skills/00_INDEX.md`）。
+- **Short-drama 方法论（按需）**：`skills/short-drama/references/` 下各 `.md` **不**随系统提示自动注入；进入某 STAGE 主产出时，**仅**按 `skills/00_INDEX.md`「Short-drama 按需引用」表读取**至多 2 个**文件；**不得**默认读取 `genre-guide.md` 或 `compliance-checklist.md`。
 - **本地辅助脚本**：`tools/episode-stats.mjs`（字数、幕数粗检）、`tools/hook-tail-list.mjs`（集尾类型与尾段预览表）。
 
 STAGE 7 涉及 **集-场-幕**、幕数 ≥8、单幕 ≤15s 等硬规则时，须与 `knowledge/01_EPISODE_SPECS.md` 及当前分集模板同步，不得口头另起一套。STAGE 5/6/7 涉及资产标记体系（∆分类 + @名称）时，须与 `agent/templates/Settings Template.md` 同步。

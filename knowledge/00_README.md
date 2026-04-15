@@ -11,6 +11,7 @@
 | `agent/context_assets/character_reference.md` | **具体角色**声线、口癖、称谓等执行细则                                 |
 | `knowledge/06_CAST_VOICE.md`                  | 仅短剧「辨识度、口癖、称谓」**原则**；具体人设以 `context_assets` 为准，避免双源冲突 |
 | `skills/*.md`                                 | 可重复工作流（何时用、步骤、引用哪些 knowledge）                         |
+| `skills/short-drama/references/*.md`          | 通用短剧方法论片段；**按需**读取，见 `skills/00_INDEX.md`；**不参与** `prompt-loader` 对 `skills/*.md` 的非递归拼接 |
 | `tools/*.mjs`                                 | 体量统计、集尾/卡点列表等辅助脚本                                     |
 
 

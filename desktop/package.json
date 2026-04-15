@@ -1,7 +1,7 @@
 {
   "name": "script-agent-desktop",
   "productName": "Script Agent",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "剧本 Agent 桌面版",
   "main": "main.cjs",
   "private": true,

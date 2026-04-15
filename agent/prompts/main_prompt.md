@@ -57,6 +57,7 @@
 - **[H. 短剧规格知识库与工作流（仓库根目录）]**
   - `**knowledge/01_EPISODE_SPECS.md`～`knowledge/07_PLATFORM_SAFE.md`**：体量、连载节奏、里程碑、钩子/集尾、声线原则、合规占位；**已由系统提示注入**（`knowledge/00_README.md` 为人类维护说明，不注入）。
   - `**skills/*.md`**（含 `skills/00_INDEX.md`）：可重复工作流（架构、单集节拍、批量粗纲、 punch 改写、连续性检查）；**已由系统提示注入**，执行复杂任务时按索引选用对应 skill，避免凭感觉跳步。
+  - **`skills/short-drama/references/*.md`（按需，非自动注入）**：进入各 STAGE 主产出时，**仅**按 `skills/00_INDEX.md`「Short-drama 按需引用」表从该目录读取**至多 2 个**文件；**不得**默认读取 `genre-guide.md` 或 `compliance-checklist.md`（二者仅在该索引「特批」条件下单次使用）。指挥权仍以 STAGE、模板与 `knowledge/` 为准。
   - `**tools/episode-stats.mjs`** / `**tools/hook-tail-list.mjs`**：体量与幕数启发式统计、集尾/卡点类型列表；路径相对仓库根，供主创或你在本地/CI 自检（非对话内自动执行）。
 
 ## 1.5 子 Agent 调度协议 (Sub-Agent Dispatch)
