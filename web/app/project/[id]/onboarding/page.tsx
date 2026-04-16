@@ -681,8 +681,8 @@ export default function OnboardingPage() {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-zinc-950 text-zinc-400">
         <p>项目不存在</p>
-        <Link href="/" className="text-indigo-400 hover:underline">
-          返回编剧室
+        <Link href="/projects" className="text-indigo-400 hover:underline">
+          返回项目列表
         </Link>
       </div>
     );
@@ -850,8 +850,8 @@ export default function OnboardingPage() {
             >
               API 设置
             </button>
-            <Link href="/" className="rounded-lg border border-zinc-700 px-2 py-1 text-xs text-zinc-400 hover:bg-zinc-800">
-              返回编剧室
+            <Link href="/projects" className="rounded-lg border border-zinc-700 px-2 py-1 text-xs text-zinc-400 hover:bg-zinc-800">
+              返回项目列表
             </Link>
           </div>
         </div>

@@ -1,60 +1,18 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense, type MouseEvent } from "react";
+import { useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import type { ProjectSummary } from "@/lib/types";
-import { STAGE_LABELS } from "@/lib/types";
 
-function formatUpdated(iso: string) {
-  try {
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return "";
-    return d.toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
-  } catch {
-    return "";
-  }
-}
-
-function ProjectHubInner() {
+function ModeHomeInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const projectParam = searchParams.get("project");
-
-  const [projects, setProjects] = useState<ProjectSummary[]>([]);
-
-  const fetchProjects = useCallback(async () => {
-    try {
-      const res = await fetch("/api/projects");
-      if (res.ok) setProjects(await res.json());
-    } catch {}
-  }, []);
-
-  useEffect(() => {
-    void fetchProjects();
-  }, [fetchProjects]);
 
   useEffect(() => {
     if (projectParam) {
       router.replace(`/studio/${projectParam}`);
     }
   }, [projectParam, router]);
-
-  function handleOpen(id: string) {
-    router.push(`/studio/${id}`);
-  }
-
-  function handleCreate() {
-    router.push("/project/new");
-  }
-
-  async function handleDelete(e: MouseEvent, id: string) {
-    e.stopPropagation();
-    if (!confirm("确定删除该项目？此操作不可恢复。")) return;
-    try {
-      await fetch(`/api/projects/${id}`, { method: "DELETE" });
-      await fetchProjects();
-    } catch {}
-  }
 
   if (projectParam) {
     return (
@@ -66,76 +24,49 @@ function ProjectHubInner() {
 
   return (
     <div className="flex min-h-full flex-col bg-zinc-950">
-      <header className="border-b border-zinc-800 px-4 py-4 sm:px-6">
-        <h1 className="text-base font-semibold text-zinc-100">BL 短剧 · 项目</h1>
-        <p className="mt-0.5 text-[12px] text-zinc-500">点击卡片进入编剧室；新建将先走立项与策划</p>
+      <header className="border-b border-zinc-800 px-4 py-6 text-center sm:px-6">
+        <h1 className="text-lg font-semibold tracking-tight text-zinc-100">BL 短剧工作台</h1>
+        <p className="mt-1 text-[12px] text-zinc-500">选择工作模式</p>
       </header>
 
-      <main className="flex-1 overflow-y-auto px-4 py-6 sm:px-6">
-        <div className="mx-auto grid max-w-6xl gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <main className="flex flex-1 flex-col items-center justify-center px-4 py-10 sm:px-6">
+        <div className="grid w-full max-w-lg gap-4 sm:grid-cols-2 sm:gap-5">
           <button
             type="button"
-            onClick={handleCreate}
-            className="group flex min-h-[120px] flex-col items-center justify-center rounded-xl border-2 border-dashed border-zinc-700 bg-zinc-900/30 px-4 py-6 text-center transition hover:border-indigo-500/50 hover:bg-zinc-900/60"
+            onClick={() => router.push("/wattpad")}
+            className="group flex min-h-[160px] flex-col items-center justify-center rounded-2xl border border-zinc-600/40 bg-zinc-900/50 p-6 text-center transition hover:border-amber-600/35 hover:bg-zinc-900/80"
           >
-            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-800 text-indigo-400 transition group-hover:bg-indigo-950/50 group-hover:text-indigo-300">
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-zinc-800 text-amber-500/90 transition group-hover:bg-amber-950/40 group-hover:text-amber-400">
+              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"
+                />
               </svg>
             </span>
-            <span className="mt-3 text-sm font-medium text-zinc-300">新建项目</span>
-            <span className="mt-1 text-[11px] text-zinc-600">立项 · 素材 · 策划对齐</span>
+            <span className="mt-4 text-sm font-semibold text-zinc-100">扒网文</span>
+            <span className="mt-1 text-[11px] text-zinc-500">Wattpad 搜索与导出</span>
           </button>
 
-          {projects.map((p) => (
-            <div
-              key={p.id}
-              role="button"
-              tabIndex={0}
-              onClick={() => handleOpen(p.id)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  handleOpen(p.id);
-                }
-              }}
-              className="group relative flex min-h-[120px] cursor-pointer flex-col rounded-xl border border-zinc-800 bg-zinc-900/40 p-4 text-left transition hover:border-indigo-500/35 hover:bg-zinc-900/70"
-            >
-              <div className="pr-8">
-                <h2 className="line-clamp-2 text-sm font-semibold text-zinc-100">{p.name}</h2>
-                <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-zinc-500">
-                  <span>
-                    {p.currentStage > 0 ? STAGE_LABELS[p.currentStage] || `STAGE ${p.currentStage}` : "未开始"}
-                  </span>
-                  {p.onboardingStatus && p.onboardingStatus !== "ready" ? (
-                    <span className="rounded bg-amber-950/60 px-1.5 py-0.5 text-amber-400/95">
-                      {p.onboardingStatus === "pending_setup" ? "待立项" : "策划中"}
-                    </span>
-                  ) : null}
-                </div>
-              </div>
-              <div className="mt-auto pt-3 text-[10px] text-zinc-600">
-                {formatUpdated(p.updatedAt) ? `更新 ${formatUpdated(p.updatedAt)}` : "\u00a0"}
-              </div>
-              <button
-                type="button"
-                onClick={(e) => void handleDelete(e, p.id)}
-                className="absolute right-2 top-2 rounded p-1.5 text-zinc-600 opacity-0 transition hover:bg-zinc-800 hover:text-red-400 group-hover:opacity-100"
-                title="删除项目"
-              >
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-          ))}
+          <button
+            type="button"
+            onClick={() => router.push("/projects")}
+            className="group flex min-h-[160px] flex-col items-center justify-center rounded-2xl border border-indigo-500/25 bg-zinc-900/50 p-6 text-center shadow-lg shadow-indigo-950/20 transition hover:border-indigo-400/40 hover:bg-zinc-900/80"
+          >
+            <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-600/90 text-white transition group-hover:bg-indigo-500">
+              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10"
+                />
+              </svg>
+            </span>
+            <span className="mt-4 text-sm font-semibold text-zinc-100">创作剧本</span>
+            <span className="mt-1 text-[11px] text-zinc-500">项目列表 · 新建后进入立项</span>
+          </button>
         </div>
-
-        {projects.length === 0 && (
-          <p className="mx-auto mt-8 max-w-md text-center text-xs text-zinc-600">
-            暂无项目，点击上方「新建项目」开始。
-          </p>
-        )}
       </main>
     </div>
   );
@@ -150,7 +81,7 @@ export default function Home() {
         </div>
       }
     >
-      <ProjectHubInner />
+      <ModeHomeInner />
     </Suspense>
   );
 }

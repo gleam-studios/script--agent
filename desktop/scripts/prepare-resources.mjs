@@ -8,6 +8,8 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { spawnSync } from "child_process";
 
+const skipWattpad = process.env.SKIP_WATTPAD_DESKTOP === "1";
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const desktopDir = path.join(__dirname, "..");
 const repoRoot = path.join(desktopDir, "..");
@@ -48,6 +50,22 @@ fs.mkdirSync(appRoot, { recursive: true });
 
 for (const name of ["agent", "knowledge", "skills"]) {
   fs.cpSync(path.join(repoRoot, name), path.join(appRoot, name), { recursive: true });
+}
+
+if (!skipWattpad) {
+  console.log("[prepare-resources] Wattpad API（PyInstaller，当前系统）…");
+  const py = process.platform === "win32" ? "python" : "python3";
+  const bundleScript = path.join(repoRoot, "services", "wattpad-api", "build_desktop_bundle.py");
+  const br = spawnSync(py, [bundleScript], { cwd: repoRoot, stdio: "inherit", shell: process.platform === "win32" });
+  if (br.status !== 0) {
+    console.error("[prepare-resources] Wattpad 打包失败。可设置 SKIP_WATTPAD_DESKTOP=1 跳过（扒网文将不可用）。");
+    process.exit(br.status ?? 1);
+  }
+} else {
+  console.warn("[prepare-resources] 已跳过 Wattpad 打包（SKIP_WATTPAD_DESKTOP=1），扒网文不可用");
+  const stub = path.join(desktopDir, "resources", "wattpad-api-bin");
+  fs.mkdirSync(stub, { recursive: true });
+  fs.writeFileSync(path.join(stub, "SKIPPED.txt"), "SKIP_WATTPAD_DESKTOP=1\n");
 }
 
 console.log("[prepare-resources] 完成 →", destNext, appRoot);

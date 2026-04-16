@@ -47,9 +47,19 @@ open "/Applications/Script Agent.app"
 
 ## 开发者：本地打包
 
+需要 **Node 22+** 与 **Python 3.12+**（用于把 `services/wattpad-api` 打成 PyInstaller 目录并放进安装包；**扒网文**随应用双击启动，用户电脑无需再装 Python）。
+
 ```bash
-cd web && npm ci && npm run build   # 如需先构建 Next
+cd web && npm ci
 cd ../desktop && npm ci && npm run dist
+```
+
+`npm run dist` 会先执行 `prepare-resources`：构建 Next standalone、复制 agent 资源、**在当前系统上打包 Wattpad API** 到 `desktop/resources/wattpad-api-bin/`，再交给 electron-builder。
+
+若暂时无法安装 Python，可跳过 Wattpad（扒网文不可用）：
+
+```bash
+SKIP_WATTPAD_DESKTOP=1 npm run dist
 ```
 
 产物在 `desktop/release/`。CI 成功时也可在 GitHub Actions → 对应运行 → **Artifacts** 下载。

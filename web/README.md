@@ -2,19 +2,20 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
-First, run the development server:
+开发环境（**端口 4000**）一条命令同时启动 Next 与 Wattpad 扒网文 API（需本机已安装 **Python 3**）：
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+仅启动前端（不拉 Wattpad API，扒网文不可用）：
+
+```bash
+npm run dev:web
+```
+
+Open [http://localhost:4000](http://localhost:4000) with your browser to see the result.
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 

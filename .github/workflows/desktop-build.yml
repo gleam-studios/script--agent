@@ -15,6 +15,7 @@ on:
       - "agent/**"
       - "knowledge/**"
       - "skills/**"
+      - "services/wattpad-api/**"
       - "desktop/**"
       - ".github/workflows/desktop-build.yml"
 
@@ -40,6 +41,11 @@ jobs:
           cache-dependency-path: |
             web/package-lock.json
             desktop/package-lock.json
+
+      - name: Setup Python (Wattpad API 打包)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
 
       - name: Install web dependencies
         working-directory: web

@@ -24,3 +24,6 @@ desktop/node_modules/
 desktop/release/
 desktop/resources/
 desktop/.cache/
+
+# Python Wattpad service
+**/services/wattpad-api/.venv/

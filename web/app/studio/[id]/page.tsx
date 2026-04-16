@@ -897,7 +897,7 @@ function StudioInner() {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4 bg-zinc-950 text-zinc-400">
         <p>{loadError}</p>
-        <Link href="/" className="text-indigo-400 hover:underline">
+        <Link href="/projects" className="text-indigo-400 hover:underline">
           返回项目页
         </Link>
       </div>
@@ -909,7 +909,7 @@ function StudioInner() {
       <div className="flex h-full flex-col bg-zinc-950">
         <header className="border-b border-zinc-800 px-4 py-2.5">
           <Link
-            href="/"
+            href="/projects"
             className="inline-block rounded-lg border border-zinc-700 px-2 py-1 text-[11px] text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-200"
           >
             返回项目页
@@ -926,7 +926,7 @@ function StudioInner() {
         <div className="flex items-center justify-between gap-3 px-4 py-2.5">
           <div className="flex min-w-0 flex-1 items-center gap-2.5">
             <Link
-              href="/"
+              href="/projects"
               className="shrink-0 rounded-lg border border-zinc-700 px-2 py-1 text-[11px] text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-200"
             >
               返回项目页

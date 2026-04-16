@@ -1,7 +1,7 @@
 {
   "name": "script-agent-desktop",
   "productName": "Script Agent",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "剧本 Agent 桌面版",
   "main": "main.cjs",
   "private": true,
@@ -28,7 +28,8 @@
     "extraResources": [
       { "from": "resources/next", "to": "next" },
       { "from": "resources/app-root", "to": "app-root" },
-      { "from": "resources/node-bin", "to": "node-bin" }
+      { "from": "resources/node-bin", "to": "node-bin" },
+      { "from": "resources/wattpad-api-bin", "to": "wattpad-api-bin" }
     ],
     "win": {
       "target": ["nsis", "portable"]
