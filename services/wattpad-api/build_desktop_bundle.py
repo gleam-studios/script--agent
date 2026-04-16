@@ -75,13 +75,13 @@ def main() -> None:
     subprocess.check_call(cmd, cwd=ROOT)
 
     if not DIST_DIR.is_dir():
-        raise SystemExit(f"未找到 PyInstaller 输出目录: {DIST_DIR}")
+        raise SystemExit(f"[build_desktop_bundle] PyInstaller output missing: {DIST_DIR}")
 
     DESKTOP_RESOURCES.mkdir(parents=True, exist_ok=True)
     if DEST.exists():
         shutil.rmtree(DEST)
     shutil.copytree(DIST_DIR, DEST)
-    print(f"[build_desktop_bundle] 已复制 → {DEST}")
+    print(f"[build_desktop_bundle] copied to {DEST}")
 
 
 if __name__ == "__main__":
