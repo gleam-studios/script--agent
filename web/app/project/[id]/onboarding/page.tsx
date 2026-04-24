@@ -11,11 +11,9 @@ import type {
   Project,
   ProjectMeta,
   SourceMaterial,
-  Settings,
 } from "@/lib/types";
-import { DEFAULT_SETTINGS } from "@/lib/types";
-import { loadSettings } from "@/components/SettingsDialog";
-import SettingsDialog from "@/components/SettingsDialog";
+import { useApiSettings } from "@/components/ApiSettingsProvider";
+import ApiSettingsToolbarButton from "@/components/ApiSettingsToolbarButton";
 import PlanningChatPanel from "@/components/PlanningChatPanel";
 import { buildAdaptationDiscussBootstrap, buildPlanningBootstrap } from "@/lib/planning-bootstrap";
 import {
@@ -69,8 +67,7 @@ export default function OnboardingPage() {
   const [materials, setMaterials] = useState<SourceMaterial[]>([]);
   const [planningMessages, setPlanningMessages] = useState<Message[]>([]);
   const [adaptationMessages, setAdaptationMessages] = useState<Message[]>([]);
-  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const { settings, openSettings } = useApiSettings();
   const [pasteLabel, setPasteLabel] = useState("");
   const [pasteBody, setPasteBody] = useState("");
   const [saving, setSaving] = useState(false);
@@ -98,10 +95,6 @@ export default function OnboardingPage() {
     () => buildAdaptationDiscussBootstrap(project?.sourceAnalysis, materials),
     [project?.sourceAnalysis, materials]
   );
-
-  useEffect(() => {
-    setSettings(loadSettings());
-  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -183,7 +176,7 @@ export default function OnboardingPage() {
 
   async function handleGenerateBibleFromReadyBar() {
     if (!settings.apiKey) {
-      setSettingsOpen(true);
+      openSettings();
       return;
     }
     setGeneratingBible(true);
@@ -403,7 +396,7 @@ export default function OnboardingPage() {
       return;
     }
     if (!settings.apiKey) {
-      setSettingsOpen(true);
+      openSettings();
       return;
     }
     setGeneratingLocaleBrief(true);
@@ -435,7 +428,7 @@ export default function OnboardingPage() {
       return;
     }
     if (!settings.apiKey) {
-      setSettingsOpen(true);
+      openSettings();
       return;
     }
     const hasBible = !!(seriesBibleDraft.trim() || (project?.seriesBible ?? "").trim());
@@ -501,7 +494,7 @@ export default function OnboardingPage() {
       return;
     }
     if (!settings.apiKey) {
-      setSettingsOpen(true);
+      openSettings();
       return;
     }
     const bibleSave = seriesBibleDraft.trim();
@@ -566,7 +559,7 @@ export default function OnboardingPage() {
       return;
     }
     if (!settings.apiKey) {
-      setSettingsOpen(true);
+      openSettings();
       return;
     }
     setSaving(true);
@@ -628,7 +621,7 @@ export default function OnboardingPage() {
 
   async function handleGenerateAdaptPlan() {
     if (!settings.apiKey) {
-      setSettingsOpen(true);
+      openSettings();
       return;
     }
     const latestDiscuss =
@@ -686,7 +679,7 @@ export default function OnboardingPage() {
       return;
     }
     if (!settings.apiKey) {
-      setSettingsOpen(true);
+      openSettings();
       return;
     }
     const bibleSave = seriesBibleDraft.trim();
@@ -921,14 +914,8 @@ export default function OnboardingPage() {
               {isAdaptationUi ? "上传原文 → 分析 → 改编讨论 → 立项表单 → 编剧室" : "填写元数据与素材 → 策划对齐 → 进入编剧室"}
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setSettingsOpen(true)}
-              className="rounded-lg border border-zinc-700 px-2 py-1 text-xs text-zinc-400 hover:bg-zinc-800"
-            >
-              API 设置
-            </button>
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+            <ApiSettingsToolbarButton />
             <Link href="/projects" className="rounded-lg border border-zinc-700 px-2 py-1 text-xs text-zinc-400 hover:bg-zinc-800">
               返回项目列表
             </Link>
@@ -1013,7 +1000,7 @@ export default function OnboardingPage() {
                 {!settings.apiKey ? (
                   <button
                     type="button"
-                    onClick={() => setSettingsOpen(true)}
+                    onClick={() => openSettings()}
                     className="ml-2 text-[11px] text-indigo-300 underline"
                   >
                     配置 API Key
@@ -1078,7 +1065,7 @@ export default function OnboardingPage() {
                   settings={settings}
                   messages={planningMessages}
                   planningBootstrap={planningBootstrap}
-                  onOpenSettings={() => setSettingsOpen(true)}
+                  onOpenSettings={() => openSettings()}
                   onMessagesChange={setPlanningMessages}
                   onAssistantDone={handlePlanningAssistantDone}
                 />
@@ -1148,7 +1135,7 @@ export default function OnboardingPage() {
                   messages={adaptationMessages}
                   planningBootstrap={adaptationDiscussBootstrap}
                   chatEndpoint="/api/adaptation-discuss"
-                  onOpenSettings={() => setSettingsOpen(true)}
+                  onOpenSettings={() => openSettings()}
                   onMessagesChange={setAdaptationMessages}
                   onAssistantDone={handleAdaptationAssistantDone}
                   headerTitle="改编策略讨论（不产出 STAGE 模板正文）"
@@ -1468,8 +1455,6 @@ export default function OnboardingPage() {
           </div>
         </div>
       )}
-
-      <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} settings={settings} onSave={setSettings} />
 
       {generatingPlan && (
         <div className="fixed inset-0 z-[60] flex flex-col items-center justify-center gap-2 bg-black/55 text-zinc-100">

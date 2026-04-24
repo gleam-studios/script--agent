@@ -2,6 +2,7 @@
 "use client";
 
 import Link from "next/link";
+import ApiSettingsToolbarButton from "@/components/ApiSettingsToolbarButton";
 import { useCallback, useEffect, useMemo, useState, useRef, type ChangeEvent } from "react";
 
 type Story = {
@@ -361,12 +362,15 @@ export default function WattpadPage() {
             <h1 className="text-lg font-semibold tracking-tight text-zinc-50">扒网文</h1>
             <p className="text-[11px] text-zinc-400">Wattpad 搜索与批量导出（请遵守版权与平台条款）</p>
           </div>
-          <Link
-            href="/"
-            className="rounded-lg border border-zinc-600/80 px-3 py-1.5 text-xs text-zinc-300 transition hover:border-zinc-500 hover:bg-zinc-900/60"
-          >
-            ← 模式选择
-          </Link>
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+            <ApiSettingsToolbarButton />
+            <Link
+              href="/"
+              className="rounded-lg border border-zinc-600/80 px-3 py-1.5 text-xs text-zinc-300 transition hover:border-zinc-500 hover:bg-zinc-900/60"
+            >
+              ← 模式选择
+            </Link>
+          </div>
         </div>
       </header>
 

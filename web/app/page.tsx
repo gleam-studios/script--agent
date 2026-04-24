@@ -2,6 +2,7 @@
 
 import { useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import ApiSettingsToolbarButton from "@/components/ApiSettingsToolbarButton";
 
 function ModeHomeInner() {
   const router = useRouter();
@@ -25,9 +26,14 @@ function ModeHomeInner() {
 
   return (
     <div className="flex min-h-full flex-col bg-zinc-950">
-      <header className="border-b border-zinc-800 px-4 py-6 text-center sm:px-6">
-        <h1 className="text-lg font-semibold tracking-tight text-zinc-100">BL 短剧工作台</h1>
-        <p className="mt-1 text-[12px] text-zinc-500">选择工作模式</p>
+      <header className="border-b border-zinc-800 px-4 py-6 sm:px-6">
+        <div className="mx-auto flex max-w-lg items-start justify-between gap-4">
+          <div className="min-w-0 flex-1 text-center sm:text-left">
+            <h1 className="text-lg font-semibold tracking-tight text-zinc-100">BL 短剧工作台</h1>
+            <p className="mt-1 text-[12px] text-zinc-500">选择工作模式</p>
+          </div>
+          <ApiSettingsToolbarButton className="self-start" />
+        </div>
       </header>
 
       <main className="flex flex-1 flex-col items-center justify-center px-4 py-10 sm:px-6">

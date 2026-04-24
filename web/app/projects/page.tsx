@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, type MouseEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import ApiSettingsToolbarButton from "@/components/ApiSettingsToolbarButton";
 import type { ProjectSummary } from "@/lib/types";
 import { STAGE_LABELS } from "@/lib/types";
 
@@ -63,6 +64,7 @@ function ProjectsHubInner() {
             <h1 className="mt-1 text-base font-semibold text-zinc-100">创作剧本 · 项目</h1>
             <p className="mt-0.5 text-[12px] text-zinc-500">点击卡片进入编剧室；新建将先走立项与策划</p>
           </div>
+          <ApiSettingsToolbarButton />
         </div>
       </header>
 

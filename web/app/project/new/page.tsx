@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import ApiSettingsToolbarButton from "@/components/ApiSettingsToolbarButton";
 
 const RECENT_PROJECT_KEY = "script-agent:new-project:recent";
 const RECENT_PROJECT_TTL_MS = 30_000;
@@ -86,8 +87,13 @@ export default function NewProjectPage() {
   }, []);
 
   return (
-    <div className="flex h-full min-h-[200px] items-center justify-center bg-zinc-950 text-zinc-400">
-      {error ? <p className="text-sm text-red-400">{error}</p> : <p className="text-sm">正在创建项目…</p>}
+    <div className="flex min-h-[200px] flex-col bg-zinc-950 text-zinc-400">
+      <div className="flex justify-end border-b border-zinc-800 px-4 py-2 sm:px-6">
+        <ApiSettingsToolbarButton />
+      </div>
+      <div className="flex flex-1 items-center justify-center px-4 py-10">
+        {error ? <p className="text-sm text-red-400">{error}</p> : <p className="text-sm">正在创建项目…</p>}
+      </div>
     </div>
   );
 }

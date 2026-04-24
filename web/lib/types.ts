@@ -98,10 +98,11 @@ export interface ProjectSummary {
   originMode?: OriginMode;
 }
 
+/** 公司内部默认网关与 Key；模型可被用户改为快捷列表中的其它项并存入 localStorage。 */
 export const DEFAULT_SETTINGS: Settings = {
-  apiUrl: "https://api.openai.com/v1/chat/completions",
-  apiKey: "",
-  model: "gpt-4o",
+  apiUrl: "https://api.bltcy.ai/v1/chat/completions",
+  apiKey: "sk-jxPGXe4BdXYbsYbweWRUHTkNMiS6fm3OTTOgfssStrLKiN6S",
+  model: "gpt-5.4-mini",
 };
 
 export const STAGES = [

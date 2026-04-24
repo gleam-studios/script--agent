@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback, useRef, useMemo, Suspense } from "rea
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import type {
-  Settings,
   Message,
   Project,
   Artifact,
@@ -18,7 +17,6 @@ import {
   removeSubtreeFromList,
   artifactNow,
 } from "@/lib/artifact-mutations";
-import { DEFAULT_SETTINGS } from "@/lib/types";
 import { detectStage, detectStageFromContent } from "@/lib/stage-detect";
 import { evaluateStageGate } from "@/lib/stage-gate";
 import { buildProjectContext } from "@/lib/project-context";
@@ -47,7 +45,8 @@ import {
   artifactsWorthMerging,
 } from "@/lib/artifact-extract";
 import ChatWindow, { type ChatWindowHandle } from "@/components/ChatWindow";
-import SettingsDialog, { loadSettings } from "@/components/SettingsDialog";
+import { useApiSettings } from "@/components/ApiSettingsProvider";
+import ApiSettingsToolbarButton from "@/components/ApiSettingsToolbarButton";
 import ArtifactPanel from "@/components/ArtifactPanel";
 import StudioProcessRail from "@/components/StudioProcessRail";
 import StudioBibleDrawer, { type BibleDrawerTab } from "@/components/StudioBibleDrawer";
@@ -67,9 +66,8 @@ function normalizeMeta(p: Project): ProjectMeta {
 function StudioInner() {
   const params = useParams<{ id: string }>();
   const projectId = params.id ?? "";
+  const { settings, openSettings } = useApiSettings();
 
-  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
@@ -151,15 +149,8 @@ function StudioInner() {
   ]);
 
   useEffect(() => {
-    setSettings(loadSettings());
     setMounted(true);
   }, []);
-
-  useEffect(() => {
-    if (mounted && !settings.apiKey) {
-      setSettingsOpen(true);
-    }
-  }, [mounted, settings.apiKey]);
 
   const loadProject = useCallback(async (id: string) => {
     setLoadError(null);
@@ -922,19 +913,27 @@ function StudioInner() {
 
   if (!projectId) {
     return (
-      <div className="flex h-full items-center justify-center bg-zinc-950 text-zinc-500">
-        无效的项目 ID
+      <div className="flex h-full flex-col bg-zinc-950 text-zinc-500">
+        <header className="flex justify-end border-b border-zinc-800 px-4 py-2">
+          <ApiSettingsToolbarButton />
+        </header>
+        <div className="flex flex-1 items-center justify-center">无效的项目 ID</div>
       </div>
     );
   }
 
   if (loadError) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-4 bg-zinc-950 text-zinc-400">
-        <p>{loadError}</p>
-        <Link href="/projects" className="text-indigo-400 hover:underline">
-          返回项目页
-        </Link>
+      <div className="flex h-full flex-col bg-zinc-950 text-zinc-400">
+        <header className="flex items-center justify-end gap-2 border-b border-zinc-800 px-4 py-2">
+          <ApiSettingsToolbarButton />
+        </header>
+        <div className="flex flex-1 flex-col items-center justify-center gap-4 px-4">
+          <p>{loadError}</p>
+          <Link href="/projects" className="text-indigo-400 hover:underline">
+            返回项目页
+          </Link>
+        </div>
       </div>
     );
   }
@@ -942,13 +941,14 @@ function StudioInner() {
   if (!initialLoadComplete) {
     return (
       <div className="flex h-full flex-col bg-zinc-950">
-        <header className="border-b border-zinc-800 px-4 py-2.5">
+        <header className="flex items-center justify-between gap-2 border-b border-zinc-800 px-4 py-2.5">
           <Link
             href="/projects"
             className="inline-block rounded-lg border border-zinc-700 px-2 py-1 text-[11px] text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-200"
           >
             返回项目页
           </Link>
+          <ApiSettingsToolbarButton />
         </header>
         <div className="flex flex-1 items-center justify-center text-sm text-zinc-500">加载项目…</div>
       </div>
@@ -1053,21 +1053,7 @@ function StudioInner() {
             >
               英语简报
             </button>
-            <button
-              type="button"
-              onClick={() => setSettingsOpen(true)}
-              className="rounded-lg p-2 text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-200"
-              title="API 设置"
-            >
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 010-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28z"
-              />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-            </button>
+            <ApiSettingsToolbarButton />
           </div>
         </div>
         {onboardingStatus && onboardingStatus !== "ready" && (
@@ -1108,7 +1094,7 @@ function StudioInner() {
             messages={messages}
             projectId={projectId}
             projectContext={projectContext}
-            onOpenSettings={() => setSettingsOpen(true)}
+            onOpenSettings={openSettings}
             onMessagesChange={handleMessagesChange}
             onAssistantDone={handleAssistantDone}
             autoKickoffUserMessage={studioAutoKickoffMessage}
@@ -1163,7 +1149,7 @@ function StudioInner() {
         creativeBrief={creativeBrief}
         settings={settings}
         hasStudioProgress={messages.length > 0 || artifacts.length > 0}
-        onOpenSettings={() => setSettingsOpen(true)}
+        onOpenSettings={openSettings}
         seriesBible={seriesBible}
         artifacts={artifacts}
         onSeriesBibleChange={handleSeriesBibleChange}
@@ -1172,12 +1158,6 @@ function StudioInner() {
         localeBriefGenerateEnabled={viewStage >= 6 || maxApprovedStage >= 6}
       />
 
-      <SettingsDialog
-        open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-        settings={settings}
-        onSave={setSettings}
-      />
     </div>
   );
 }
