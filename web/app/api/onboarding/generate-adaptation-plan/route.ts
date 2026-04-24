@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { completeChatNonStream } from "@/lib/openai-completion";
 import { buildAdaptationPlannerBootstrap } from "@/lib/planning-bootstrap";
+import { completeEnglishLocaleBrief } from "@/lib/locale-research";
 import { getProject, saveProject } from "@/lib/project-store";
 import { loadAdaptationPlannerPrompt } from "@/lib/prompt-loader";
 import { completeSeriesBibleLlm } from "@/lib/series-bible-llm";
@@ -120,8 +121,17 @@ export async function POST(req: NextRequest) {
   };
 
   let seriesBibleError: string | undefined;
+  let localeBriefError: string | undefined;
   if (bibleResult.ok) {
     merged = { ...merged, seriesBible: bibleResult.seriesBible };
+    if ((bibleResult.seriesBible ?? "").trim()) {
+      const localeResult = await completeEnglishLocaleBrief(merged, settings);
+      if (localeResult.ok) {
+        merged = { ...merged, englishLocaleBrief: localeResult.markdown.trim() };
+      } else {
+        localeBriefError = localeResult.error;
+      }
+    }
   } else {
     seriesBibleError = bibleResult.error;
   }
@@ -132,5 +142,6 @@ export async function POST(req: NextRequest) {
     ok: true,
     project: merged,
     seriesBibleError,
+    localeBriefError,
   });
 }

@@ -643,6 +643,7 @@ export default function OnboardingPage() {
         error?: string;
         project?: Project;
         seriesBibleError?: string;
+        localeBriefError?: string;
       };
       if (!res.ok) {
         alert(data.error || "生成失败");
@@ -659,6 +660,11 @@ export default function OnboardingPage() {
       if (data.seriesBibleError) {
         alert(
           `《创作思路确认书》已保存。《系列圣经》自动生成未成功：${data.seriesBibleError}\n可在本页点击「用 LLM 根据确认书生成」补全圣经。`
+        );
+      }
+      if (data.localeBriefError) {
+        alert(
+          `《创作思路确认书》与《系列圣经》已保存。英语 Locale 简报自动生成未成功：${data.localeBriefError}\n可在立项表单中点击「LLM 生成简报」重试。`
         );
       }
       setAdaptPhase("meta");
@@ -1342,7 +1348,7 @@ export default function OnboardingPage() {
           >
             <h2 className="mb-2 text-sm font-semibold text-zinc-100">保存立项文稿</h2>
             <p className="mb-2 text-[11px] text-zinc-500">
-              确认书、系列圣经与英语 Locale 简报均可编辑。若圣经框内已有正文，保存时将直接采用；否则将尝试用 LLM 根据确认书自动生成圣经后再进入编剧室（STAGE 1 起）。简报须单独点击「LLM 生成简报」。
+              确认书、系列圣经与英语 Locale 简报均可编辑。改编讨论后若已通过「下一步：生成确认书与系列圣经」进入本步，确认书、圣经与简报会一并尝试生成；若某步失败可在此用「LLM 生成圣经」或「LLM 生成简报」补全。保存时若圣经框为空，仍会尝试根据确认书自动生成后再进入编剧室（STAGE 1 起）。
             </p>
             <p className="mb-1 text-[10px] font-medium text-zinc-400">《创作思路确认书》</p>
             <textarea
@@ -1461,8 +1467,8 @@ export default function OnboardingPage() {
 
       {generatingPlan && (
         <div className="fixed inset-0 z-[60] flex flex-col items-center justify-center gap-2 bg-black/55 text-zinc-100">
-          <p className="text-sm font-medium">正在生成《创作思路确认书》与《系列圣经》…</p>
-          <p className="text-xs text-zinc-400">请稍候，可能需要数十秒…</p>
+          <p className="text-sm font-medium">正在生成《创作思路确认书》《系列圣经》与英语 Locale 简报…</p>
+          <p className="text-xs text-zinc-400">请稍候，可能需要数十秒至一两分钟…</p>
         </div>
       )}
     </div>
