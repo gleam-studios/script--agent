@@ -135,7 +135,14 @@ async def v1_export_markdown_one(
         finally:
             session.close()
         elapsed = time.perf_counter() - t0
-        fname = str(item.get("filename") or "story.md")
+        raw_one = str(item.get("filename") or "story.txt").strip() or "story.txt"
+        p_one = Path(raw_one)
+        if p_one.suffix.lower() == ".md":
+            fname = str(p_one.with_suffix(".txt"))
+        elif p_one.suffix.lower() == ".txt":
+            fname = str(p_one)
+        else:
+            fname = str(p_one) + ".txt"
         content = str(item.get("content") or "")
         part_count = int(item.get("part_count") or 0)
         nchars = len(content)
@@ -238,11 +245,18 @@ async def v1_export_batch(
                     cookies_path=cookies_path,
                 )
                 elapsed = time.perf_counter() - t0
-                fname = item["filename"]
-                stem = fname[:-3] if fname.lower().endswith(".md") else fname
+                raw_fn = str(item.get("filename") or "story.txt").strip() or "story.txt"
+                pth = Path(raw_fn)
+                if pth.suffix.lower() == ".md":
+                    fname = str(pth.with_suffix(".txt"))
+                elif pth.suffix.lower() == ".txt":
+                    fname = str(pth)
+                else:
+                    fname = str(pth) + ".txt"
+                stem = Path(fname).stem
                 dup_n = 2
                 while fname in used_filenames:
-                    fname = f"{stem}-{dup_n}.md"
+                    fname = f"{stem}-{dup_n}.txt"
                     dup_n += 1
                 used_filenames.add(fname)
                 content = str(item.get("content") or "")
@@ -258,7 +272,7 @@ async def v1_export_batch(
             session.close()
 
         total_elapsed = time.perf_counter() - batch_t0
-        log_line(f"=== 拉取正文结束 === 合计 {len(files_out)} 个 .md，总耗时 {total_elapsed:.2f}s")
+        log_line(f"=== 拉取正文结束 === 合计 {len(files_out)} 个 .txt，总耗时 {total_elapsed:.2f}s")
 
         log_text = log_buf.getvalue()
         if len(log_text) > 14_000:
@@ -270,7 +284,7 @@ async def v1_export_batch(
         if pack_as_zip:
             keyword = str(data.get("keyword") or "batch").strip()
             # Content-Disposition 必须为 latin-1；文件名仅用 ASCII（slugify 已限制，避免中文等）
-            suggest_stem = f"{slugify(keyword) or 'batch'}-{len(stories)}-md"
+            suggest_stem = f"{slugify(keyword) or 'batch'}-{len(stories)}-txt"
             tmp_zip = tempfile.NamedTemporaryFile(delete=False, suffix=".zip")
             tmp_zip.close()
             archive_path = Path(tmp_zip.name).resolve()
@@ -312,7 +326,7 @@ async def v1_export_batch(
             cookies_path.unlink(missing_ok=True)
 
         return JSONResponse(
-            {"format": "markdown-multi", "files": files_out},
+            {"format": "text-multi", "files": files_out},
             headers=log_headers,
         )
     except HTTPException:

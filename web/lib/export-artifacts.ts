@@ -1,3 +1,7 @@
+/**
+ * 产物在应用内仍按 Markdown 编辑与展示；本模块仅在「导出下载 / ZIP」时使用 .txt 扩展名与 text/plain，
+ * 文件正文保持与界面一致的 Markdown 结构。
+ */
 import JSZip from "jszip";
 import { compareStage6SubKeys } from "./artifact-mutations";
 import type { Artifact } from "./types";
@@ -62,7 +66,7 @@ function orderedStage7Episodes(artifacts: Artifact[]): Stage7EpisodeBundle[] {
 function stage7EpisodeZipFileName(bundle: Stage7EpisodeBundle): string {
   const n = bundle.epKey.replace(/\D/g, "") || "0";
   const label = bundle.overview?.label?.trim() || `第${n}集`;
-  return `${String(parseInt(n, 10) || 0).toString().padStart(2, "0")}-${sanitizePathSegment(label)}.md`;
+  return `${String(parseInt(n, 10) || 0).toString().padStart(2, "0")}-${sanitizePathSegment(label)}.txt`;
 }
 
 function buildStage7SingleEpisodeMarkdown(projectName: string, bundle: Stage7EpisodeBundle): string {
@@ -187,7 +191,7 @@ function stageFileBaseName(stageId: number): string {
   return `${String(stageId).padStart(2, "0")}-${sanitizePathSegment(label)}`;
 }
 
-/** 《创作思路确认书》Markdown 正文（立项 creativeBrief，与 ZIP 内 `00-创作思路确认书.md` 一致） */
+/** 《创作思路确认书》导出正文（立项 creativeBrief，与 ZIP 内 `00-创作思路确认书.txt` 一致） */
 export function buildCreativeBriefMarkdown(projectName: string, creativeBrief: string): string {
   const exportedAt = new Date().toLocaleString("zh-CN", { hour12: false });
   const body = creativeBrief.trim();
@@ -204,18 +208,18 @@ export function buildCreativeBriefMarkdown(projectName: string, creativeBrief: s
   ].join("\n");
 }
 
-/** 仅下载创作思路确认书为单个 .md 文件（立项页等场景） */
+/** 仅下载创作思路确认书为单个 .txt 文件（立项页等场景） */
 export function downloadCreativeBriefMarkdownFile(projectName: string, creativeBrief: string): void {
   const body = creativeBrief.trim();
   if (!body) return;
   const text = buildCreativeBriefMarkdown(projectName, body);
-  const blob = new Blob([text], { type: "text/markdown;charset=utf-8" });
+  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   const safeProject = sanitizePathSegment(projectName);
   const stamp = new Date().toISOString().slice(0, 19).replace(/:/g, "-");
   a.href = url;
-  a.download = `${safeProject}-创作思路确认书-${stamp}.md`;
+  a.download = `${safeProject}-创作思路确认书-${stamp}.txt`;
   a.rel = "noopener";
   document.body.appendChild(a);
   a.click();
@@ -223,7 +227,7 @@ export function downloadCreativeBriefMarkdownFile(projectName: string, creativeB
   URL.revokeObjectURL(url);
 }
 
-/** 《系列圣经（SSOT）》Markdown 正文 */
+/** 《系列圣经（SSOT）》导出正文 */
 export function buildSeriesBibleMarkdown(projectName: string, seriesBible: string): string {
   const exportedAt = new Date().toLocaleString("zh-CN", { hour12: false });
   const body = seriesBible.trim();
@@ -244,13 +248,13 @@ export function downloadSeriesBibleMarkdownFile(projectName: string, seriesBible
   const body = seriesBible.trim();
   if (!body) return;
   const text = buildSeriesBibleMarkdown(projectName, body);
-  const blob = new Blob([text], { type: "text/markdown;charset=utf-8" });
+  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   const safeProject = sanitizePathSegment(projectName);
   const stamp = new Date().toISOString().slice(0, 19).replace(/:/g, "-");
   a.href = url;
-  a.download = `${safeProject}-系列圣经-SSOT-${stamp}.md`;
+  a.download = `${safeProject}-系列圣经-SSOT-${stamp}.txt`;
   a.rel = "noopener";
   document.body.appendChild(a);
   a.click();
@@ -259,9 +263,9 @@ export function downloadSeriesBibleMarkdownFile(projectName: string, seriesBible
 }
 
 export type DownloadArtifactsZipOptions = {
-  /** 立项阶段写入的《创作思路确认书》；若有则写入 ZIP 内 `00-创作思路确认书.md` */
+  /** 立项阶段写入的《创作思路确认书》；若有则写入 ZIP 内 `00-创作思路确认书.txt` */
   creativeBrief?: string;
-  /** 系列圣经；若有则写入 ZIP 内 `系列圣经（SSOT）.md` */
+  /** 系列圣经；若有则写入 ZIP 内 `系列圣经（SSOT）.txt` */
   seriesBible?: string;
 };
 
@@ -281,10 +285,10 @@ export async function downloadArtifactsZip(
   const root = zip.folder(safeProject) ?? zip;
 
   if (bibleMd) {
-    root.file("系列圣经（SSOT）.md", bibleMd);
+    root.file("系列圣经（SSOT）.txt", bibleMd);
   }
   if (briefMd) {
-    root.file("00-创作思路确认书.md", briefMd);
+    root.file("00-创作思路确认书.txt", briefMd);
   }
 
   for (const s of STAGES) {
@@ -300,17 +304,17 @@ export async function downloadArtifactsZip(
           let name = stage7EpisodeZipFileName(b);
           if (usedNames.has(name)) {
             const num = b.epKey.replace(/\D/g, "") || "0";
-            name = `${num.padStart(2, "0")}-${sanitizePathSegment(b.epKey)}.md`;
+            name = `${num.padStart(2, "0")}-${sanitizePathSegment(b.epKey)}.txt`;
           }
           usedNames.add(name);
           target.file(name, buildStage7SingleEpisodeMarkdown(projectName, b));
         }
       } else {
-        root.file(`${stageFileBaseName(7)}.md`, buildStageMarkdown(7, stageArts, projectName));
+        root.file(`${stageFileBaseName(7)}.txt`, buildStageMarkdown(7, stageArts, projectName));
       }
     } else {
       const md = buildStageMarkdown(s.id, stageArts, projectName);
-      root.file(`${stageFileBaseName(s.id)}.md`, md);
+      root.file(`${stageFileBaseName(s.id)}.txt`, md);
     }
   }
 

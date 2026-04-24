@@ -331,11 +331,17 @@ export default function WattpadPage() {
           break;
         }
         const one = (await res.json()) as { filename?: string; content?: string };
-        const name = (one.filename?.trim() || "story.md").replace(/[/\\]/g, "-");
-        const blob = new Blob([one.content ?? ""], { type: "text/markdown;charset=utf-8" });
+        const raw = (one.filename?.trim() || "story.txt").replace(/[/\\]/g, "-");
+        const low = raw.toLowerCase();
+        const name = low.endsWith(".txt")
+          ? raw
+          : low.endsWith(".md")
+            ? `${raw.slice(0, -3)}.txt`
+            : `${raw}.txt`;
+        const blob = new Blob([one.content ?? ""], { type: "text/plain;charset=utf-8" });
         const a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
-        a.download = name.endsWith(".md") ? name : `${name}.md`;
+        a.download = name;
         a.click();
         URL.revokeObjectURL(a.href);
         ok += 1;
@@ -344,7 +350,7 @@ export default function WattpadPage() {
         }
       }
       appendLog(`导出结束：成功 ${ok}/${chosen.length} 本`);
-      setStatusLine(ok === chosen.length ? `${ok} 个 .md` : `${ok}/${chosen.length} 本`);
+      setStatusLine(ok === chosen.length ? `${ok} 个 .txt` : `${ok}/${chosen.length} 本`);
     } catch (e) {
       appendLog(e instanceof Error ? e.message : String(e));
     } finally {
@@ -588,7 +594,9 @@ export default function WattpadPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog">
           <div className="w-full max-w-md rounded-xl border border-zinc-700 bg-zinc-900 p-4 shadow-xl">
             <p className="text-lg font-semibold text-zinc-100">{[...selected].filter((i) => stories[i]).length}</p>
-            <p className="mt-1 text-xs text-zinc-500">将逐本请求并下载 Markdown（当前为所选行对应作品）</p>
+            <p className="mt-1 text-xs text-zinc-500">
+              将逐本请求并下载为 .txt（正文与原先 Markdown 导出一致，仅扩展名与 MIME 为文本文件）
+            </p>
             <ul className="mt-3 max-h-40 overflow-y-auto rounded border border-zinc-800 bg-zinc-950/80 p-2 text-xs text-zinc-300">
               {[...selected]
                 .sort((a, b) => a - b)

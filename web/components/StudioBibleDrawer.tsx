@@ -242,9 +242,9 @@ export default function StudioBibleDrawer({
                   downloadSeriesBibleMarkdownFile(projectName || "未命名项目", seriesBible)
                 }
                 className="rounded border border-zinc-600 px-2 py-1 text-[11px] text-zinc-200 disabled:cursor-not-allowed disabled:opacity-40"
-                title="下载为 Markdown"
+                title="仅导出为 .txt；侧栏编辑仍为 Markdown，内容一致"
               >
-                导出 .md
+                导出 .txt
               </button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto">

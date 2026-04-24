@@ -348,7 +348,7 @@ def export_authorized_story_markdown(
     md = render_story_markdown(story, chapters)
     stem = safe_story_basename(story, basename)
     return {
-        "filename": f"{stem}.md",
+        "filename": f"{stem}.txt",
         "content": md,
         "part_count": len(chapters),
         "paywalled": bool(story.get("isPaywalled")),

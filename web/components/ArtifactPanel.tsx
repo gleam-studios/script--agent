@@ -29,9 +29,9 @@ interface Props {
   pipelineProgress?: PipelineProgress | null;
   onPausePipeline?: () => void;
   onResumePipeline?: () => void;
-  /** 立项《创作思路确认书》；打包 ZIP 时写入 `00-创作思路确认书.md`，且仅有此文稿时也可导出 */
+  /** 立项《创作思路确认书》；打包 ZIP 时写入 `00-创作思路确认书.txt`，且仅有此文稿时也可导出 */
   creativeBrief?: string;
-  /** 系列圣经；打包 ZIP 时写入 `系列圣经（SSOT）.md` */
+  /** 系列圣经；打包 ZIP 时写入 `系列圣经（SSOT）.txt` */
   seriesBible?: string;
 }
 
@@ -191,12 +191,12 @@ export default function ArtifactPanel({
                 : artifacts.length === 0 && !hasBriefForExport && !hasBibleForExport
                   ? "暂无产物、圣经与确认书可导出"
                   : artifacts.length === 0
-                    ? `打包下载 ZIP（立项文档${hasBibleForExport ? "含圣经" : ""}${hasBriefForExport ? "含确认书" : ""}）`
+                    ? `打包下载 ZIP（立项文档${hasBibleForExport ? "含圣经" : ""}${hasBriefForExport ? "含确认书" : ""}；包内为 .txt，正文仍为 Markdown）`
                     : hasBriefForExport || hasBibleForExport
-                      ? `打包下载 ZIP（含立项文档 + ${stageCount} 个阶段）`
+                      ? `打包下载 ZIP（含立项文档 + ${stageCount} 个阶段；包内 .txt，正文仍为 Markdown）`
                       : hasStructuredStage5Episodes
-                        ? `打包下载 ZIP（STAGE1–4 各一个 .md；STAGE5 为「05-分集剧本」文件夹，每集单独 .md）`
-                        : `打包下载 ZIP（${stageCount} 个阶段，每阶段一个 .md）`
+                        ? `打包下载 ZIP（STAGE1–4 各一个 .txt；STAGE7「07-分集剧本」文件夹每集 .txt；仅扩展名，正文仍为 Markdown）`
+                        : `打包下载 ZIP（${stageCount} 个阶段各一个 .txt；仅扩展名，正文仍为 Markdown）`
             }
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

@@ -1198,9 +1198,9 @@ export default function OnboardingPage() {
                         )
                       }
                       className="shrink-0 rounded border border-zinc-600 px-2 py-0.5 text-[11px] text-zinc-300 transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40"
-                      title="下载为 Markdown 文件"
+                      title="仅下载为 .txt；正文与编辑区相同，仍为 Markdown"
                     >
-                      导出 .md
+                      导出 .txt
                     </button>
                   </div>
                   <textarea
@@ -1227,9 +1227,9 @@ export default function OnboardingPage() {
                           )
                         }
                         className="rounded border border-zinc-600 px-2 py-0.5 text-[11px] text-zinc-300 transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40"
-                        title="下载为 Markdown"
+                        title="仅下载为 .txt；正文与编辑区相同，仍为 Markdown"
                       >
-                        导出圣经 .md
+                        导出圣经 .txt
                       </button>
                       <button
                         type="button"
@@ -1318,8 +1318,9 @@ export default function OnboardingPage() {
                       )
                     }
                     className="rounded border border-zinc-600 px-3 py-1.5 text-xs text-zinc-300 hover:bg-zinc-800"
+                    title="仅下载为 .txt；正文与立项稿相同，仍为 Markdown"
                   >
-                    导出《创作思路确认书》.md
+                    导出《创作思路确认书》.txt
                   </button>
                 ) : null}
               </div>
@@ -1363,6 +1364,7 @@ export default function OnboardingPage() {
                     )
                   }
                   className="rounded border border-zinc-600 px-2 py-0.5 text-[10px] text-zinc-300 hover:bg-zinc-800 disabled:opacity-40"
+                  title="仅下载为 .txt；正文与编辑区相同，仍为 Markdown"
                 >
                   导出圣经
                 </button>
@@ -1424,8 +1426,9 @@ export default function OnboardingPage() {
                   )
                 }
                 className="rounded border border-zinc-600 px-3 py-1.5 text-xs text-zinc-300 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40"
+                title="仅下载为 .txt；正文与弹窗内稿相同，仍为 Markdown"
               >
-                导出确认书 .md
+                导出确认书 .txt
               </button>
               <div className="flex gap-2">
                 <button
