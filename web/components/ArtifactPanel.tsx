@@ -169,7 +169,7 @@ export default function ArtifactPanel({
                 ? "请先选择项目"
                 : stage5Artifacts.length === 0
                   ? "暂无分集产物，无法体检"
-                  : "分集体检：幕数、汉字量、估时（对齐 knowledge 与 episode-stats）"
+                  : "分集体检：汉字量、估时等（启发式，对齐 tools/episode-stats）"
             }
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -229,6 +229,7 @@ export default function ArtifactPanel({
             </p>
           </div>
         ) : (
+          <>
           <StageGroup
             key={viewStage}
             stageId={viewStage}
@@ -246,6 +247,7 @@ export default function ArtifactPanel({
             onPausePipeline={onPausePipeline}
             onResumePipeline={onResumePipeline}
           />
+          </>
         )}
       </div>
 

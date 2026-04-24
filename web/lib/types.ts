@@ -19,7 +19,7 @@ export interface ProjectMeta {
   extraNotes: string;
 }
 
-export type SourceMaterialKind = "paste" | "txt" | "docx";
+export type SourceMaterialKind = "paste" | "txt" | "md" | "docx" | "pdf";
 
 export interface SourceMaterial {
   id: string;
@@ -75,6 +75,8 @@ export interface Project {
   onboardingStatus?: OnboardingStatus;
   /** 策划对齐后的创作思路摘要（Markdown） */
   creativeBrief?: string;
+  /** 全剧一份：英语对白 Locale 简报（Markdown），STAGE 7 语体 SSOT */
+  englishLocaleBrief?: string;
   /** 策划阶段专用对话，与编剧室 messages 分离 */
   planningMessages?: Message[];
   /** 立项模式：原创 / 改编 */

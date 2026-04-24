@@ -9,10 +9,11 @@ function ModeHomeInner() {
   const projectParam = searchParams.get("project");
 
   useEffect(() => {
-    if (projectParam) {
-      router.replace(`/studio/${projectParam}`);
-    }
-  }, [projectParam, router]);
+    if (!projectParam) return;
+    router.replace(`/studio/${projectParam}`);
+    // 与 /project/new 相同：不把 router 放进依赖，避免其引用变化时重复 replace 造成「一直刷新」
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectParam]);
 
   if (projectParam) {
     return (

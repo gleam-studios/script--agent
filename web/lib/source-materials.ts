@@ -16,6 +16,9 @@ export const CREATIVE_BRIEF_CONTEXT_CHARS = 300;
 /** seriesBible 注入主对话上下文时的前缀摘要长度 */
 export const SERIES_BIBLE_CONTEXT_CHARS = 400;
 
+/** 英语 Locale 简报注入 STAGE 7 工程上下文时的前缀摘要长度 */
+export const ENGLISH_LOCALE_BRIEF_CONTEXT_CHARS = 450;
+
 /** 改编：原文分析注入编剧室上下文的摘录长度 */
 export const SOURCE_ANALYSIS_CONTEXT_CHARS = 400;
 

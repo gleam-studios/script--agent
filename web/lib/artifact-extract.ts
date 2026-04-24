@@ -1,3 +1,4 @@
+import { forEachAssetMention } from "./asset-at-mention";
 import type { Artifact } from "./types";
 import { compareStage6SubKeys } from "./artifact-mutations";
 import { stripThinkingBlocks } from "./strip-thinking";
@@ -93,6 +94,11 @@ export function looksLikeTemplateDeliverable(content: string): boolean {
   if (/(?:^|\n)##\s*事件链总检/m.test(c)) return true;
   if (/(?:^|\n)###\s*场次\s*\d+/m.test(c)) return true;
   if (/(?:^|\n)####\s*幕\s*\d+/m.test(c)) return true;
+  /** STAGE 7 新格式：概述字段 + 正文块 */
+  if (/(?:^|\n)\s*本集剧情核心\s*[：:]/m.test(c)) return true;
+  if (/(?:^|\n)\s*∆出场人物\s*[：:]/m.test(c)) return true;
+  if (/(?:^|\n)\s*∆出场物品\s*[：:]/m.test(c)) return true;
+  if (/(?:^|\n)---\s*\n\s*正文\s*[：:]/m.test(c)) return true;
   // STAGE 5 设定集
   if (/(?:^|\n)##?\s*∆(?:人物|物品|场景)/m.test(c)) return true;
   if (/(?:^|\n)##?\s*设定集/m.test(c)) return true;
@@ -542,18 +548,23 @@ function splitSceneBodyIntoMus(sceneBody: string): { meta: string; mus: { num: s
 /** 从 `## 第1集` / `## 第一集` / `第[集数]集` 等解析分集根键 */
 function parseEpisodeRootFromHeading(heading: string): { epKey: string; epLabel: string } | null {
   const h = heading.replace(/^#+\s*/, "").trim();
+  const titleM = h.match(/《([^》]+)》/);
+  const titleSuffix = titleM?.[1]?.trim() ? `：《${titleM[1].trim()}》` : "";
   const ar = h.match(/第\s*(\d+)\s*集/);
   if (ar) {
     const n = ar[1];
-    return { epKey: `ep${n}`, epLabel: `第${n}集` };
+    return { epKey: `ep${n}`, epLabel: `第${n}集${titleSuffix}` };
   }
   const cn = h.match(/第\s*([一二三四五六七八九十百千]+)\s*集/);
   if (cn) {
     const idx = cnOrdinalToNum(cn[1]);
-    if (idx > 0) return { epKey: `ep${idx}`, epLabel: `第${idx}集` };
+    if (idx > 0) return { epKey: `ep${idx}`, epLabel: `第${idx}集${titleSuffix}` };
   }
   if (/第\s*\[集数\]\s*集/.test(h) || /第\s*[Xx?？]\s*集/.test(h)) {
-    return { epKey: "ep_placeholder", epLabel: "第?集（占位）" };
+    return {
+      epKey: "ep_placeholder",
+      epLabel: titleSuffix ? `第?集${titleSuffix}` : "第?集（占位）",
+    };
   }
   return null;
 }
@@ -585,15 +596,12 @@ function extractStage5Settings(content: string): Artifact[] {
       updatedAt: now(),
     });
 
-    const atRe = /@([^\s:：,，;；\n@∆]+)/g;
-    let m: RegExpExecArray | null;
     const seen = new Set<string>();
-    while ((m = atRe.exec(sec.body)) !== null) {
-      const name = m[1].trim();
-      if (!name || seen.has(name)) continue;
+    forEachAssetMention(sec.body, (name, mIndex) => {
+      if (!name || seen.has(name)) return;
       seen.add(name);
       const subKey = `${cat.prefix}_${slugify(name)}`;
-      const bodyAfterAt = sec.body.slice(m.index);
+      const bodyAfterAt = sec.body.slice(mIndex);
       const nextAt = bodyAfterAt.indexOf("@", 1);
       const nextH = bodyAfterAt.search(/\n##/);
       const endIdx = Math.min(
@@ -610,7 +618,7 @@ function extractStage5Settings(content: string): Artifact[] {
         updatedAt: now(),
         parentKey: cat.catKey,
       });
-    }
+    });
   }
 
   return results;
@@ -690,6 +698,24 @@ function normalizeStage7Markdown(c: string): string {
   return s;
 }
 
+/** 新 STAGE 7：`---` + `正文：` 后拆出 epN / epN.body；否则返回 null */
+function trySplitStage7NewFormat(
+  heading: string,
+  body: string
+): { overview: string; bodyText: string } | null {
+  const combined = `${heading}\n\n${body}`.trim();
+  let m = /\n---\s*\n+\s*正文\s*[：:]\s*\n([\s\S]*)$/m.exec(combined);
+  if (!m) {
+    m = /(?:^|\n)正文\s*[：:]\s*\n([\s\S]*)$/m.exec(combined);
+  }
+  if (!m) return null;
+  /** 若仍含旧「场次」结构，交给旧解析 */
+  if (/###\s*场次\s*\d+/.test(combined)) return null;
+  const overview = combined.slice(0, m.index).trim();
+  const bodyText = (m[1] ?? "").trim();
+  return { overview, bodyText };
+}
+
 function extractStage7(content: string): Artifact[] {
   const results: Artifact[] = [];
   const topSections = splitBySections(normalizeStage7Markdown(content), "##");
@@ -698,6 +724,28 @@ function extractStage7(content: string): Artifact[] {
     const root = parseEpisodeRootFromHeading(sec.heading);
     if (!root) continue;
     const { epKey, epLabel } = root;
+
+    const newFmt = trySplitStage7NewFormat(sec.heading, sec.body);
+    if (newFmt) {
+      results.push({
+        stage: 7,
+        subKey: epKey,
+        label: epLabel,
+        content: newFmt.overview,
+        updatedAt: now(),
+      });
+      if (newFmt.bodyText.length > 0) {
+        results.push({
+          stage: 7,
+          subKey: `${epKey}.body`,
+          label: `${epLabel} - 正文`,
+          content: newFmt.bodyText,
+          updatedAt: now(),
+          parentKey: epKey,
+        });
+      }
+      continue;
+    }
 
     const subSections = splitBySections(sec.body, "###");
 

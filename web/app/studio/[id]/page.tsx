@@ -29,6 +29,7 @@ import {
   maxExistingEpisodeNum,
   extractPrevEpisodeSummary,
   buildEpisodeUserMessage,
+  isStage7EpisodeParsed,
   type PipelineProgress,
 } from "@/lib/stage5-pipeline";
 import {
@@ -49,7 +50,7 @@ import ChatWindow, { type ChatWindowHandle } from "@/components/ChatWindow";
 import SettingsDialog, { loadSettings } from "@/components/SettingsDialog";
 import ArtifactPanel from "@/components/ArtifactPanel";
 import StudioProcessRail from "@/components/StudioProcessRail";
-import StudioBibleDrawer from "@/components/StudioBibleDrawer";
+import StudioBibleDrawer, { type BibleDrawerTab } from "@/components/StudioBibleDrawer";
 
 function normalizeMeta(p: Project): ProjectMeta {
   const m = p.meta;
@@ -82,12 +83,14 @@ function StudioInner() {
   const [gateOverrideNote, setGateOverrideNote] = useState("");
   const [projectMeta, setProjectMeta] = useState<ProjectMeta | null>(null);
   const [creativeBrief, setCreativeBrief] = useState("");
+  const [englishLocaleBrief, setEnglishLocaleBrief] = useState("");
   const [onboardingStatus, setOnboardingStatus] = useState<OnboardingStatus | null>(null);
   const [projectOriginMode, setProjectOriginMode] = useState<OriginMode>("original");
   const [projectSourceAnalysis, setProjectSourceAnalysis] = useState("");
 
   const [panelCollapsed, setPanelCollapsed] = useState(false);
   const [bibleDrawerOpen, setBibleDrawerOpen] = useState(false);
+  const [bibleDrawerTab, setBibleDrawerTab] = useState<BibleDrawerTab>("bible");
   const [chatLoading, setChatLoading] = useState(false);
   /** 右侧产物区与流程条共用的「当前查看阶段」（1–5） */
   const [viewStage, setViewStage] = useState(1);
@@ -97,6 +100,7 @@ function StudioInner() {
   const chatRef = useRef<ChatWindowHandle>(null);
   const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const seriesBibleSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const englishLocaleBriefSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const artifactsRef = useRef(artifacts);
   artifactsRef.current = artifacts;
   const pipelineAbortRef = useRef(false);
@@ -132,6 +136,7 @@ function StudioInner() {
       originMode: om,
       sourceAnalysisExcerpt: excerpt,
       seriesBible,
+      englishLocaleBrief,
     });
   }, [
     messages,
@@ -142,6 +147,7 @@ function StudioInner() {
     projectOriginMode,
     projectSourceAnalysis,
     seriesBible,
+    englishLocaleBrief,
   ]);
 
   useEffect(() => {
@@ -174,6 +180,7 @@ function StudioInner() {
       setGateOverrideNote(p.gateOverrideNote ?? "");
       setProjectMeta(normalizeMeta(p));
       setCreativeBrief(p.creativeBrief ?? "");
+      setEnglishLocaleBrief(p.englishLocaleBrief ?? "");
       setOnboardingStatus(p.onboardingStatus ?? "ready");
       setProjectOriginMode(p.originMode ?? "original");
       setProjectSourceAnalysis(p.sourceAnalysis ?? "");
@@ -197,7 +204,12 @@ function StudioInner() {
       msgs: Message[],
       arts: Artifact[],
       stage: number,
-      persistOverrides?: { seriesBible?: string; maxApprovedStage?: number; gateOverrideNote?: string }
+      persistOverrides?: {
+        seriesBible?: string;
+        englishLocaleBrief?: string;
+        maxApprovedStage?: number;
+        gateOverrideNote?: string;
+      }
     ) => {
       if (!projectId) return;
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
@@ -208,6 +220,7 @@ function StudioInner() {
             artifacts: arts,
             currentStage: stage,
             seriesBible: persistOverrides?.seriesBible ?? seriesBible,
+            englishLocaleBrief: persistOverrides?.englishLocaleBrief ?? englishLocaleBrief,
             maxApprovedStage: persistOverrides?.maxApprovedStage ?? maxApprovedStage,
             gateOverrideNote: persistOverrides?.gateOverrideNote ?? gateOverrideNote,
           };
@@ -220,7 +233,7 @@ function StudioInner() {
         } catch {}
       }, 400);
     },
-    [projectId, seriesBible, maxApprovedStage, gateOverrideNote]
+    [projectId, seriesBible, englishLocaleBrief, maxApprovedStage, gateOverrideNote]
   );
 
   const handleSeriesBibleChange = useCallback(
@@ -234,6 +247,24 @@ function StudioInner() {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ seriesBible: next }),
+          });
+        } catch {}
+      }, 600);
+    },
+    [projectId]
+  );
+
+  const handleEnglishLocaleBriefChange = useCallback(
+    (next: string) => {
+      setEnglishLocaleBrief(next);
+      if (!projectId) return;
+      if (englishLocaleBriefSaveTimerRef.current) clearTimeout(englishLocaleBriefSaveTimerRef.current);
+      englishLocaleBriefSaveTimerRef.current = setTimeout(async () => {
+        try {
+          await fetch(`/api/projects/${projectId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ englishLocaleBrief: next }),
           });
         } catch {}
       }, 600);
@@ -283,6 +314,14 @@ function StudioInner() {
     if (!initialLoadComplete) return;
     void autoApproveWhenGatePasses();
   }, [initialLoadComplete, autoApproveWhenGatePasses]);
+
+  useEffect(() => {
+    if (viewStage === 7 && projectId && !englishLocaleBrief.trim()) {
+      console.info(
+        "[编剧室] 建议先在顶栏打开「英语简报」，生成《英语 Locale 简报》，再写 STAGE 7 英语对白。"
+      );
+    }
+  }, [viewStage, projectId, englishLocaleBrief]);
 
   const runEpisodePipeline = useCallback(
     async (totalEpisodes: number) => {
@@ -344,9 +383,7 @@ function StudioInner() {
         await new Promise((r) => setTimeout(r, 300));
 
         const epKey = `ep${ep}`;
-        const parsedInRef = artifactsRef.current.some(
-          (a) => a.stage === 7 && a.subKey === epKey && (a.content ?? "").trim().length >= 40
-        );
+        const parsedInRef = isStage7EpisodeParsed(artifactsRef.current, epKey);
 
         if (!parsedInRef && reply) {
           const forcedExtracted = extractArtifacts(reply, 7);
@@ -357,9 +394,7 @@ function StudioInner() {
           }
         }
 
-        const parsed = artifactsRef.current.some(
-          (a) => a.stage === 7 && a.subKey === epKey && (a.content ?? "").trim().length >= 40
-        );
+        const parsed = isStage7EpisodeParsed(artifactsRef.current, epKey);
 
         if (!reply || (!parsed && !retried)) {
           setPipelineProgress({
@@ -996,12 +1031,27 @@ function StudioInner() {
             })()}
             <button
               type="button"
-              onClick={() => setBibleDrawerOpen(true)}
+              onClick={() => {
+                setBibleDrawerTab("bible");
+                setBibleDrawerOpen(true);
+              }}
               disabled={!projectId}
               className="rounded-lg border border-zinc-700 px-2.5 py-1.5 text-[11px] font-medium text-zinc-300 transition hover:bg-zinc-800 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-40"
               title="项目设定真源（SSOT）"
             >
               系列圣经
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setBibleDrawerTab("locale");
+                setBibleDrawerOpen(true);
+              }}
+              disabled={!projectId}
+              className="rounded-lg border border-zinc-700 px-2.5 py-1.5 text-[11px] font-medium text-zinc-300 transition hover:bg-zinc-800 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-40"
+              title="全剧英语对白语体简报（与系列圣经同抽屉）"
+            >
+              英语简报
             </button>
             <button
               type="button"
@@ -1038,7 +1088,7 @@ function StudioInner() {
         (messages.length > 0 || artifacts.length > 0) ? (
           <div className="border-t border-zinc-800/80 px-4 py-2">
             <div className="rounded border border-amber-800/60 bg-amber-950/40 px-2 py-1.5 text-[10px] text-amber-100/90">
-              检测到已有对话或产物但系列圣经仍为空。请到立项页补生成系列圣经，或在侧栏「系列圣经」中用 LLM 生成。
+              检测到已有对话或产物但系列圣经仍为空。请到立项页补生成系列圣经，或在顶栏「系列圣经」抽屉中用 LLM 生成。
               <Link
                 href={`/project/${projectId}/onboarding`}
                 className="ml-1 underline text-indigo-300 hover:text-indigo-200"
@@ -1105,6 +1155,8 @@ function StudioInner() {
       <StudioBibleDrawer
         open={bibleDrawerOpen}
         onClose={() => setBibleDrawerOpen(false)}
+        drawerTab={bibleDrawerTab}
+        onDrawerTabChange={setBibleDrawerTab}
         hasProject={!!projectId}
         projectId={projectId}
         projectName={projectName || "未命名项目"}
@@ -1115,6 +1167,9 @@ function StudioInner() {
         seriesBible={seriesBible}
         artifacts={artifacts}
         onSeriesBibleChange={handleSeriesBibleChange}
+        englishLocaleBrief={englishLocaleBrief}
+        onEnglishLocaleBriefChange={handleEnglishLocaleBriefChange}
+        localeBriefGenerateEnabled={viewStage >= 6 || maxApprovedStage >= 6}
       />
 
       <SettingsDialog

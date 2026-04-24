@@ -14,10 +14,6 @@ function isEpisodeRoot(a: Artifact): boolean {
   return !a.parentKey && (/^ep\d+$/u.test(a.subKey) || a.subKey === "ep_placeholder");
 }
 
-function isSceneRootSubKey(subKey: string): boolean {
-  return /^ep\d+\.scene\d+$/u.test(subKey);
-}
-
 function epNumFromKey(epKey: string): number {
   if (epKey === "ep_placeholder") return 0;
   return parseInt(epKey.replace(/\D/g, ""), 10) || 0;
@@ -33,26 +29,6 @@ function nextEpisodeNum(all: Artifact[]): number {
   return max + 1;
 }
 
-function nextSceneNum(epKey: string, all: Artifact[]): number {
-  let max = 0;
-  for (const a of all) {
-    if (a.parentKey !== epKey || !isSceneRootSubKey(a.subKey)) continue;
-    const m = a.subKey.match(/\.scene(\d+)$/u);
-    if (m) max = Math.max(max, parseInt(m[1], 10) || 0);
-  }
-  return max + 1;
-}
-
-function nextMuNum(sceneKey: string, all: Artifact[]): number {
-  let max = 0;
-  for (const a of all) {
-    if (a.parentKey !== sceneKey) continue;
-    const m = a.subKey.match(/\.m(\d+)$/u);
-    if (m) max = Math.max(max, parseInt(m[1], 10) || 0);
-  }
-  return max + 1;
-}
-
 function epLabel(overview: Artifact | undefined, epKey: string): string {
   const fromOverview = overview?.label?.replace(/\s*-\s*场次.*/u, "").trim();
   if (fromOverview) return fromOverview;
@@ -60,13 +36,11 @@ function epLabel(overview: Artifact | undefined, epKey: string): string {
   return `第${epNumFromKey(epKey)}集`;
 }
 
-function sceneCountForEp(epKey: string, all: Artifact[]): number {
-  return all.filter((a) => a.parentKey === epKey && isSceneRootSubKey(a.subKey)).length;
-}
-
-/** 卡片摘要：去 Markdown 噪声后截断 */
-function episodeCardExcerpt(markdown: string, maxLen: number): string {
-  const t = markdown
+/** 卡片摘要：优先「本集剧情核心」一行 */
+function episodeCardExcerpt(overviewText: string, maxLen: number): string {
+  const core = overviewText.match(/本集剧情核心\s*[：:]\s*([^\n]+)/u)?.[1]?.trim() ?? "";
+  if (core) return core.length <= maxLen ? core : `${core.slice(0, maxLen)}…`;
+  const t = overviewText
     .replace(/^#{1,6}\s+/gm, "")
     .replace(/\*\*?|__|`/g, "")
     .replace(/\s+/g, " ")
@@ -96,17 +70,12 @@ export default function EpisodeTreeEditor({ artifacts, onUpsert, onRemoveSubtree
     return () => window.removeEventListener("keydown", onKey);
   }, [modalEpKey]);
 
-  useEffect(() => {
-    if (modalEpKey && !epKeys.includes(modalEpKey)) {
-      setModalEpKey(null);
-    }
-  }, [modalEpKey, epKeys]);
-
   return (
     <div className="space-y-3">
       <p className="text-[10px] leading-relaxed text-zinc-500">
-        分集以 <span className="text-zinc-400">5 列卡片</span>{" "}
-        总览；点击卡片在弹窗中编辑本集（场次 / 幕 / 概述）。删除整集请在卡片上操作。
+        分集以 <span className="text-zinc-400">5 列卡片</span> 总览；每集为{" "}
+        <span className="text-zinc-400">概述（epN）+ 正文（epN.body）</span>{" "}
+        两块。点击卡片在弹窗中编辑；删除整集请在卡片上操作。
       </p>
 
       {epKeys.length === 0 ? (
@@ -135,7 +104,10 @@ export default function EpisodeTreeEditor({ artifacts, onUpsert, onRemoveSubtree
               onRemove={() => {
                 const overview = stage5.find((a) => a.subKey === epKey && !a.parentKey);
                 const lab = epLabel(overview, epKey);
-                if (confirm(`删除「${lab}」及其下所有场次与幕？`)) onRemoveSubtree(epKey);
+                if (confirm(`删除「${lab}」及其正文与关联块？`)) {
+                  onRemoveSubtree(epKey);
+                  setModalEpKey((k) => (k === epKey ? null : k));
+                }
               }}
             />
           ))}
@@ -194,7 +166,6 @@ export default function EpisodeTreeEditor({ artifacts, onUpsert, onRemoveSubtree
                 epKey={modalEpKey}
                 all={stage5}
                 onUpsert={onUpsert}
-                onRemoveSubtree={onRemoveSubtree}
               />
             </div>
           </div>
@@ -216,10 +187,11 @@ function EpisodeCard({
   onRemove: () => void;
 }) {
   const overview = all.find((a) => a.subKey === epKey && !a.parentKey);
+  const body = all.find((a) => a.subKey === `${epKey}.body`);
   const lab = epLabel(overview, epKey);
-  const scenes = sceneCountForEp(epKey, all);
   const excerpt = episodeCardExcerpt(overview?.content ?? "", 100);
-  const chars = (overview?.content ?? "").length;
+  const oChars = (overview?.content ?? "").length;
+  const bChars = (body?.content ?? "").length;
 
   return (
     <div className="group relative flex min-h-[5.5rem] flex-col rounded-lg border border-zinc-800/90 bg-zinc-950/60 p-2.5 shadow-sm transition hover:border-indigo-500/45 hover:bg-zinc-900/50">
@@ -231,8 +203,9 @@ function EpisodeCard({
         <span className="line-clamp-2 text-[12px] font-semibold leading-snug text-zinc-100">{lab}</span>
         <span className="mt-1.5 line-clamp-3 flex-1 text-[10px] leading-relaxed text-zinc-500">{excerpt}</span>
         <span className="mt-2 flex items-center justify-between gap-1 border-t border-zinc-800/60 pt-1.5 text-[9px] text-zinc-600">
-          <span>{scenes} 场次</span>
-          <span>{chars > 0 ? `${chars} 字` : "—"}</span>
+          <span>
+            概述 {oChars > 0 ? `${oChars} 字` : "—"} · 正文 {bChars > 0 ? `${bChars} 字` : "—"}
+          </span>
         </span>
       </button>
       <button
@@ -254,218 +227,81 @@ function EpisodeBlock({
   epKey,
   all,
   onUpsert,
-  onRemoveSubtree,
 }: {
   epKey: string;
   all: Artifact[];
   onUpsert: Props["onUpsert"];
-  onRemoveSubtree: Props["onRemoveSubtree"];
 }) {
   const overview = all.find((a) => a.subKey === epKey && !a.parentKey);
   const direct = all.filter((a) => a.parentKey === epKey);
-  const sceneRoots = direct
-    .filter((a) => isSceneRootSubKey(a.subKey))
-    .sort((a, b) => a.subKey.localeCompare(b.subKey));
-  const extras = direct.filter((a) => !isSceneRootSubKey(a.subKey));
-
+  const extras = direct.filter(
+    (a) => a.subKey !== `${epKey}.body` && !/^ep\d+\.scene\d+$/u.test(a.subKey)
+  );
   const epLab = epLabel(overview, epKey);
-
-  const scenes = sceneRoots.map((scene) => ({
-    scene,
-    mus: all.filter((a) => a.parentKey === scene.subKey).sort((a, b) => {
-      const na = parseInt(a.subKey.replace(/^.*\.m(\d+)$/u, "$1"), 10) || 0;
-      const nb = parseInt(b.subKey.replace(/^.*\.m(\d+)$/u, "$1"), 10) || 0;
-      return na - nb;
-    }),
-  }));
+  const bodyArt = all.find((a) => a.subKey === `${epKey}.body`);
 
   return (
     <div className="rounded-lg border border-zinc-800/50 bg-zinc-950/20">
       <div className="space-y-2 p-2">
-      <ArtifactSlotEditor
-        label={`${epLab} · 本集概述`}
-        value={overview?.content ?? ""}
-        compact
-        rows={8}
-        textareaClassName="min-h-[min(12rem,28vh)]"
-        onCommit={(content) =>
-          onUpsert({
-            stage: 7,
-            subKey: epKey,
-            label: epLab,
-            content,
-          })
-        }
-      />
-
-      {scenes.map(({ scene, mus }) => (
-        <SceneBlock
-          key={scene.subKey}
-          epKey={epKey}
-          epLab={epLab}
-          scene={scene}
-          mus={mus}
-          all={all}
-          onUpsert={onUpsert}
-          onRemoveSubtree={onRemoveSubtree}
+        <ArtifactSlotEditor
+          label={`${epLab} · 概述（头信息 / epN）`}
+          value={overview?.content ?? ""}
+          compact
+          rows={8}
+          textareaClassName="min-h-[min(12rem,28vh)]"
+          onCommit={(content) =>
+            onUpsert({
+              stage: 7,
+              subKey: epKey,
+              label: epLab,
+              content,
+            })
+          }
         />
-      ))}
 
-      <button
-        type="button"
-        onClick={() => {
-          const sn = nextSceneNum(epKey, all);
-          const sk = `${epKey}.scene${sn}`;
-          onUpsert({
-            stage: 7,
-            subKey: sk,
-            parentKey: epKey,
-            label: `${epLab} - 场次${sn}`,
-            content: "",
-          });
-        }}
-        className="w-full rounded-md border border-zinc-800 py-1.5 text-[10px] text-zinc-500 hover:border-zinc-700 hover:text-zinc-300"
-      >
-        + 本集添加场次 {nextSceneNum(epKey, all)}
-      </button>
+        <ArtifactSlotEditor
+          label={`${epLab} · 正文（时间线叙事 / epN.body）`}
+          value={bodyArt?.content ?? ""}
+          compact
+          rows={14}
+          textareaClassName="min-h-[min(18rem,40vh)]"
+          onCommit={(content) =>
+            onUpsert({
+              stage: 7,
+              subKey: `${epKey}.body`,
+              parentKey: epKey,
+              label: `${epLab} - 正文`,
+              content,
+            })
+          }
+        />
 
-      {extras.length > 0 ? (
-        <div className="space-y-1.5 pt-1">
-          <p className="text-[9px] uppercase tracking-wide text-zinc-600">其他块（解析产物等）</p>
-          {extras.map((a) => (
-            <ArtifactSlotEditor
-              key={a.subKey}
-              label={a.label}
-              value={a.content}
-              compact
-              rows={4}
-              onCommit={(content) =>
-                onUpsert({
-                  stage: 7,
-                  subKey: a.subKey,
-                  parentKey: a.parentKey,
-                  label: a.label,
-                  content,
-                })
-              }
-            />
-          ))}
-        </div>
-      ) : null}
+        {extras.length > 0 ? (
+          <div className="space-y-1.5 pt-1">
+            <p className="text-[9px] uppercase tracking-wide text-zinc-600">
+              其他块（旧版解析产物等，可删改）
+            </p>
+            {extras.map((a) => (
+              <ArtifactSlotEditor
+                key={a.subKey}
+                label={a.label}
+                value={a.content}
+                compact
+                rows={4}
+                onCommit={(content) =>
+                  onUpsert({
+                    stage: 7,
+                    subKey: a.subKey,
+                    parentKey: a.parentKey,
+                    label: a.label,
+                    content,
+                  })
+                }
+              />
+            ))}
+          </div>
+        ) : null}
       </div>
-    </div>
-  );
-}
-
-function SceneBlock({
-  epKey,
-  epLab,
-  scene,
-  mus,
-  all,
-  onUpsert,
-  onRemoveSubtree,
-}: {
-  epKey: string;
-  epLab: string;
-  scene: Artifact;
-  mus: Artifact[];
-  all: Artifact[];
-  onUpsert: Props["onUpsert"];
-  onRemoveSubtree: Props["onRemoveSubtree"];
-}) {
-  const [open, setOpen] = useState(true);
-  const sceneMatch = scene.subKey.match(/scene(\d+)$/u);
-  const sn = sceneMatch ? sceneMatch[1] : "?";
-
-  return (
-    <div className="rounded-lg border border-zinc-800/50 bg-zinc-900/20">
-      <div className="flex items-center justify-between gap-2 px-2 py-1.5">
-        <button
-          type="button"
-          onClick={() => setOpen(!open)}
-          className="text-left text-[11px] font-medium text-zinc-300"
-        >
-          场次 {sn}
-          <span className="ml-2 text-[10px] font-normal text-zinc-600">{mus.length} 幕</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            if (confirm("删除本场次及其下所有幕？")) onRemoveSubtree(scene.subKey);
-          }}
-          className="text-[10px] text-rose-500/80 hover:underline"
-        >
-          删除
-        </button>
-      </div>
-      {open && (
-        <div className="space-y-2 border-t border-zinc-800/40 p-2">
-          <ArtifactSlotEditor
-            label={`场次 ${sn} · 正文`}
-            value={scene.content}
-            compact
-            rows={6}
-            textareaClassName="min-h-[min(10rem,22vh)]"
-            onCommit={(content) =>
-              onUpsert({
-                stage: 7,
-                subKey: scene.subKey,
-                parentKey: epKey,
-                label: scene.label || `${epLab} - 场次${sn}`,
-                content,
-              })
-            }
-          />
-          {mus.map((mu) => (
-            <div key={mu.subKey} className="flex gap-2">
-              <div className="min-w-0 flex-1">
-                <ArtifactSlotEditor
-                  label={mu.label}
-                  value={mu.content}
-                  compact
-                  rows={4}
-                  onCommit={(content) =>
-                    onUpsert({
-                      stage: 7,
-                      subKey: mu.subKey,
-                      parentKey: scene.subKey,
-                      label: mu.label,
-                      content,
-                    })
-                  }
-                />
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  if (confirm("删除该幕？")) onRemoveSubtree(mu.subKey);
-                }}
-                className="self-start pt-6 text-[10px] text-rose-500/80 hover:underline"
-              >
-                删
-              </button>
-            </div>
-          ))}
-          <button
-            type="button"
-            onClick={() => {
-              const mn = nextMuNum(scene.subKey, all);
-              const mk = `${scene.subKey}.m${mn}`;
-              onUpsert({
-                stage: 7,
-                subKey: mk,
-                parentKey: scene.subKey,
-                label: `${epLab} - 场次${sn} - 幕${mn}`,
-                content: "",
-              });
-            }}
-            className="w-full rounded border border-zinc-800 py-1 text-[10px] text-zinc-500 hover:text-zinc-300"
-          >
-            + 添加幕 {nextMuNum(scene.subKey, all)}
-          </button>
-        </div>
-      )}
     </div>
   );
 }

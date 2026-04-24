@@ -1,4 +1,6 @@
+import { extractAtMentionBodiesFromText } from "./asset-at-mention";
 import type { Artifact } from "./types";
+import { isStage7EpisodeParsed } from "./stage5-pipeline";
 
 const MIN_ONELINER = 8;
 const MIN_ACT = 40;
@@ -48,12 +50,9 @@ function hasEpisodeLevel(artifacts: Artifact[]): boolean {
  */
 export function extractRegisteredAssetNames(settingsArtifacts: Artifact[]): Set<string> {
   const names = new Set<string>();
-  const re = /@([^\s:：,，;；\n@∆]+)/g;
   for (const a of settingsArtifacts) {
-    let m: RegExpExecArray | null;
-    while ((m = re.exec(a.content)) !== null) {
-      const name = m[1].trim();
-      if (name) names.add(name);
+    for (const n of extractAtMentionBodiesFromText(a.content)) {
+      names.add(n);
     }
   }
   return names;
@@ -73,11 +72,8 @@ export function validateAssetReferences(
   if (registered.size === 0) return [];
 
   const unregistered: string[] = [];
-  const re = /@([^\s:：,，;；\n@∆]+)/g;
-  let m: RegExpExecArray | null;
   const seen = new Set<string>();
-  while ((m = re.exec(targetContent)) !== null) {
-    const name = m[1].trim();
+  for (const name of extractAtMentionBodiesFromText(targetContent)) {
     if (!name || seen.has(name)) continue;
     seen.add(name);
     if (!registered.has(name)) unregistered.push(name);
@@ -131,10 +127,10 @@ export function parseCastListNames(castListContent: string): {
   function extractAtName(trimmed: string): string | null {
     const m =
       trimmed.match(
-        /^(?:[-*•·]|\d+[.)、）])\s*(?:\*\*)?@([^\s@*—\-–:：,，;；、]+)(?:\*\*)?/
-      ) ?? trimmed.match(/^@([^\s@*—\-–:：,，;；、]+)/);
+        /^(?:[-*•·]|\d+[.)、）])\s*(?:\*\*)?@((?:[^@\n]+?（[^）]+）)|(?:[^\s@*—\-–:：,，;；、]+))(?:\*\*)?/
+      ) ?? trimmed.match(/^@((?:[^@\n]+?（[^）]+）)|(?:[^\s@*—\-–:：,，;；、]+))/);
     if (!m) return null;
-    let name = m[1].trim().replace(/\*+$/g, "");
+    const name = m[1].trim().replace(/\*+$/g, "");
     if (!name || /^用一句话|^须列出|^禁止|^示例/i.test(name)) return null;
     return name;
   }
@@ -160,14 +156,13 @@ export function parseCastListNames(castListContent: string): {
   }
 
   if (leads.length + supporting.length === 0) {
-    const global = castListContent.matchAll(/@([^\s@*—\-–:：,，;；、\n]+)/g);
     const seen = new Set<string>();
-    for (const m of global) {
-      const raw = m[1].replace(/\*+$/g, "").trim();
-      if (!raw || seen.has(raw)) continue;
-      if (/^(角色|名称|[ABCDE])$/i.test(raw)) continue;
-      seen.add(raw);
-      leads.push(raw);
+    for (const raw of extractAtMentionBodiesFromText(castListContent)) {
+      const n = raw.replace(/\*+$/g, "").trim();
+      if (!n || seen.has(n)) continue;
+      if (/^(角色|名称|[ABCDE])$/i.test(n)) continue;
+      seen.add(n);
+      leads.push(n);
     }
   }
 
@@ -191,13 +186,9 @@ function countFilledOutlines(artifacts: Artifact[], totalEp: number): number {
 }
 
 function countFilledEpisodes(artifacts: Artifact[], totalEp: number): number {
-  const s7 = artifacts.filter((a) => a.stage === 7);
   let count = 0;
   for (let ep = 1; ep <= totalEp; ep++) {
-    const art = s7.find(
-      (a) => a.subKey === `ep${ep}` || a.subKey === `ep_${ep}`
-    );
-    if (art && (art.content ?? "").trim().length >= 40) count++;
+    if (isStage7EpisodeParsed(artifacts, `ep${ep}`)) count++;
   }
   return count;
 }

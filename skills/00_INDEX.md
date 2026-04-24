@@ -10,6 +10,7 @@
 | [skill-batch-outline.md](skill-batch-outline.md)             | 单次 5～10 集粗纲与钩子链             |
 | [skill-rewrite-for-punch.md](skill-rewrite-for-punch.md)     | 压缩废话、强化钩子/集尾，不改主线事实         |
 | [skill-continuity-pass.md](skill-continuity-pass.md)         | 每 N 集连续性检查                  |
+| [skill-english-dialogue-localization.md](skill-english-dialogue-localization.md) | **STAGE 7**：英语对白本地化；侧栏 Locale 简报 + 禁止 Chinglish；与 `english-lines-agent-role` 配合 |
 
 
 相关工具：`tools/episode-stats.mjs`（CJK 体量、粗估时长、**`#### 幕` 计数**与 `--strict --min-acts 8`）、`tools/hook-tail-list.mjs`（集尾类型、尾段预览、**每集幕数列**）。

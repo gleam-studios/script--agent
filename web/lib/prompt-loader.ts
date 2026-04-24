@@ -14,6 +14,7 @@ const ORDERED_FILES = [
   "prompts/flowchart.md",
   "prompts/script-planning-agent-role.md",
   "prompts/lines-agent-role.md",
+  "prompts/english-lines-agent-role.md",
   "context_assets/character_reference.md",
 ];
 

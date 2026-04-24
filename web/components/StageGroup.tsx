@@ -172,7 +172,7 @@ export default function StageGroup({
       <div className="space-y-2">
         <p className="text-[10px] leading-relaxed text-zinc-500">
           {isEpisodes
-            ? "分集为卡片总览（大屏 5 列），点卡片在弹窗中编辑整集；左侧解析会落入对应集。"
+            ? "分集为卡片总览（大屏 5 列），每集「概述 + 正文」双槽；点卡片在弹窗编辑；左侧解析落入 epN / epN.body。"
             : stageId === 5
               ? "仅三块：在对应 ∆ 分类正文里用 @名称 登记即可；自动记录会落入这三栏，无需逐条拆成子卡片。"
               : stageId === 6

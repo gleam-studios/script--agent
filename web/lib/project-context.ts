@@ -1,9 +1,14 @@
+import { extractAtMentionBodiesFromText } from "./asset-at-mention";
 import { compareStage6SubKeys } from "./artifact-mutations";
 import type { Artifact, Message, ProjectMeta } from "./types";
 import { detectStage } from "./stage-detect";
 import { evaluateStageGate, parseEventEpisodeRange } from "./stage-gate";
 import { parseTargetEpisodeCount } from "./stage5-pipeline";
-import { CREATIVE_BRIEF_CONTEXT_CHARS, SERIES_BIBLE_CONTEXT_CHARS } from "./source-materials";
+import {
+  CREATIVE_BRIEF_CONTEXT_CHARS,
+  ENGLISH_LOCALE_BRIEF_CONTEXT_CHARS,
+  SERIES_BIBLE_CONTEXT_CHARS,
+} from "./source-materials";
 
 const STAGE1_OUTLINE_EXCERPT = 500;
 const STAGE3_ACT_EXCERPT = 200;
@@ -90,13 +95,7 @@ function buildSettingsAssetList(artifacts: Artifact[]): string {
 
   const lines: string[] = [];
   for (const cat of cats) {
-    const atRe = /@([^\s:：,，;；\n@∆]+)/g;
-    const names: string[] = [];
-    let m: RegExpExecArray | null;
-    while ((m = atRe.exec(cat.content)) !== null) {
-      const n = m[1].trim();
-      if (n) names.push(`@${n}`);
-    }
+    const names = extractAtMentionBodiesFromText(cat.content).map((n) => `@${n}`);
     lines.push(`${cat.label}：${names.join("、") || "（暂无）"}`);
   }
 
@@ -136,6 +135,8 @@ export function buildProjectContext(params: {
   sourceAnalysisExcerpt?: string;
   /** 项目级系列圣经；完整正文以侧栏为准，此处为节录注入 */
   seriesBible?: string;
+  /** 全剧一份英语 Locale 简报；侧栏为准 */
+  englishLocaleBrief?: string;
 }): string {
   const {
     messages,
@@ -146,6 +147,7 @@ export function buildProjectContext(params: {
     originMode,
     sourceAnalysisExcerpt,
     seriesBible,
+    englishLocaleBrief,
   } = params;
   const inferred = detectStage(messages);
   const approved = maxApprovedStage ?? 0;
@@ -227,6 +229,15 @@ export function buildProjectContext(params: {
 
   if (approved >= 6 && inferred >= 7) {
     parts.push(buildOutlineSummary(artifacts));
+  }
+
+  const locale = englishLocaleBrief?.trim();
+  if (locale && approved >= 6 && inferred >= 7) {
+    const ex = locale.slice(0, ENGLISH_LOCALE_BRIEF_CONTEXT_CHARS);
+    const more = locale.length > ENGLISH_LOCALE_BRIEF_CONTEXT_CHARS;
+    parts.push(
+      `[英语对白 Locale 简报（须服从）] 侧栏全文为准；以下为前 ${ENGLISH_LOCALE_BRIEF_CONTEXT_CHARS} 字${more ? "，后略" : ""}：${ex}${more ? "…" : ""}`
+    );
   }
 
   return parts.join("");

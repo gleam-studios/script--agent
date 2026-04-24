@@ -80,8 +80,11 @@ export default function OnboardingPage() {
   const [creativeBrief, setCreativeBrief] = useState("");
   /** 立项页可编辑的系列圣经草稿，与编剧室侧栏同源字段 */
   const [seriesBibleDraft, setSeriesBibleDraft] = useState("");
+  /** 英语 Locale 简报草稿，与编剧室「英语简报」同源 */
+  const [englishLocaleBriefDraft, setEnglishLocaleBriefDraft] = useState("");
   const [generatingPlan, setGeneratingPlan] = useState(false);
   const [generatingBible, setGeneratingBible] = useState(false);
+  const [generatingLocaleBrief, setGeneratingLocaleBrief] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const adaptationMessagesRef = useRef<Message[]>([]);
 
@@ -116,6 +119,7 @@ export default function OnboardingPage() {
       setAdaptationMessages(p.adaptationMessages ?? []);
       setCreativeBrief(p.creativeBrief ?? "");
       setSeriesBibleDraft(p.seriesBible ?? "");
+      setEnglishLocaleBriefDraft(p.englishLocaleBrief ?? "");
       const om: OriginMode = p.originMode ?? "original";
       setOriginTab(om);
       let nextAdapt = effectiveAdaptPhase(p);
@@ -263,8 +267,41 @@ export default function OnboardingPage() {
           continue;
         }
         text = data.text ?? "";
-      } else {
+      } else if (lower.endsWith(".pdf") || file.type === "application/pdf") {
+        kind = "pdf";
+        try {
+          const fd = new FormData();
+          fd.append("file", file);
+          const res = await fetch("/api/parse-pdf", { method: "POST", body: fd });
+          let data: { text?: string; error?: string };
+          try {
+            data = (await res.json()) as { text?: string; error?: string };
+          } catch {
+            alert("PDF 解析失败：服务未返回有效数据，请重试或换一份文件。");
+            continue;
+          }
+          if (!res.ok) {
+            alert(data.error || "PDF 解析失败");
+            continue;
+          }
+          text = data.text ?? "";
+          if (!text.trim()) {
+            alert("该 PDF 未提取到文字，可能是扫描版/纯图片。请使用可复制文字的 PDF，或粘贴文字。");
+            continue;
+          }
+        } catch (e) {
+          alert(e instanceof Error ? e.message : "上传或解析 PDF 失败，请重试。");
+          continue;
+        }
+      } else if (lower.endsWith(".md") || lower.endsWith(".markdown") || file.type === "text/markdown") {
+        kind = "md";
         text = await file.text();
+      } else if (lower.endsWith(".txt") || file.type === "text/plain") {
+        kind = "txt";
+        text = await file.text();
+      } else {
+        alert("不支持的文件格式，请使用 .txt、.md、.docx 或 .pdf。");
+        continue;
       }
       const mat: SourceMaterial = {
         id: nanoid(10),
@@ -351,7 +388,44 @@ export default function OnboardingPage() {
     const extracted = lastRaw ? extractCreativeBriefDocument(lastRaw).trim() : "";
     setBriefDraft(extracted || lastRaw || project?.creativeBrief?.trim() || "");
     setSeriesBibleDraft(project?.seriesBible ?? "");
+    setEnglishLocaleBriefDraft(project?.englishLocaleBrief ?? "");
     setBriefOpen(true);
+  }
+
+  async function handleGenerateLocaleBriefInOnboarding(creativeBriefSource: string) {
+    const briefNorm = (extractCreativeBriefDocument(creativeBriefSource) || creativeBriefSource).trim();
+    if (!briefNorm) {
+      alert("请先填写《创作思路确认书》正文，供简报参照。");
+      return;
+    }
+    if (!seriesBibleDraft.trim()) {
+      alert("请先填写或生成《系列圣经》正文，再生成简报。");
+      return;
+    }
+    if (!settings.apiKey) {
+      setSettingsOpen(true);
+      return;
+    }
+    setGeneratingLocaleBrief(true);
+    try {
+      const res = await fetch("/api/locale-research", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId: id,
+          settings,
+          creativeBriefOverride: briefNorm,
+          seriesBibleOverride: seriesBibleDraft.trim(),
+        }),
+      });
+      const data = (await res.json()) as { markdown?: string; error?: string };
+      if (!res.ok) throw new Error(data.error || res.statusText);
+      if (data.markdown) setEnglishLocaleBriefDraft(data.markdown);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "生成简报失败");
+    } finally {
+      setGeneratingLocaleBrief(false);
+    }
   }
 
   async function handleLlmFillSeriesBibleInForm(briefForLlm: string) {
@@ -445,6 +519,7 @@ export default function OnboardingPage() {
           name: meta.seriesTitle.trim() || project?.name,
           originMode: "original",
           ...(bibleSave ? { seriesBible: bibleSave } : {}),
+          ...(englishLocaleBriefDraft.trim() ? { englishLocaleBrief: englishLocaleBriefDraft.trim() } : {}),
         }),
       });
       if (!res.ok) throw new Error("保存失败");
@@ -452,6 +527,7 @@ export default function OnboardingPage() {
       setBriefOpen(false);
       setProject(saved);
       setSeriesBibleDraft(saved.seriesBible ?? seriesBibleDraft);
+      setEnglishLocaleBriefDraft(saved.englishLocaleBrief ?? englishLocaleBriefDraft);
 
       if ((saved.seriesBible ?? "").trim()) {
         alert("已保存立项与系列圣经。请从 STAGE 1 剧情梗概开始。");
@@ -583,6 +659,7 @@ export default function OnboardingPage() {
         setProject(data.project);
         setCreativeBrief(data.project.creativeBrief ?? "");
         setSeriesBibleDraft(data.project.seriesBible ?? "");
+        setEnglishLocaleBriefDraft(data.project.englishLocaleBrief ?? "");
         setPlanningMessages(data.project.planningMessages ?? []);
         setAdaptationMessages(data.project.adaptationMessages ?? latestDiscuss);
       }
@@ -629,12 +706,14 @@ export default function OnboardingPage() {
           adaptationMessages,
           creativeBrief: creativeBrief.trim(),
           ...(bibleSave ? { seriesBible: bibleSave } : {}),
+          ...(englishLocaleBriefDraft.trim() ? { englishLocaleBrief: englishLocaleBriefDraft.trim() } : {}),
         }),
       });
       if (!res.ok) throw new Error("保存失败");
       const saved: Project = await res.json();
       setProject(saved);
       setSeriesBibleDraft(saved.seriesBible ?? seriesBibleDraft);
+      setEnglishLocaleBriefDraft(saved.englishLocaleBrief ?? englishLocaleBriefDraft);
 
       if ((saved.seriesBible ?? "").trim()) {
         alert("已保存立项与系列圣经。请从 STAGE 1 剧情梗概开始。");
@@ -707,7 +786,7 @@ export default function OnboardingPage() {
       <input
         ref={fileInputRef}
         type="file"
-        accept=".txt,.docx,text/plain"
+        accept=".txt,.md,.markdown,.docx,.pdf,text/plain,text/markdown,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         multiple
         className="hidden"
         aria-hidden
@@ -732,7 +811,7 @@ export default function OnboardingPage() {
           选择文件上传
         </button>
         <span className="text-[11px] leading-snug text-zinc-500">
-          支持 .txt、Word（.docx），可多选；Word 会在服务端转为纯文本保存
+          支持 .txt、Markdown（.md）、Word（.docx）、PDF（.pdf），可多选；Word / PDF 在服务端转为纯文本后保存
         </span>
       </div>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
@@ -1167,7 +1246,13 @@ export default function OnboardingPage() {
                       </button>
                       <button
                         type="button"
-                        disabled={generatingBible || !creativeBrief.trim() || !settings.apiKey}
+                        disabled={
+                          generatingBible ||
+                          generatingLocaleBrief ||
+                          saving ||
+                          !creativeBrief.trim() ||
+                          !settings.apiKey
+                        }
                         onClick={() => void handleLlmFillSeriesBibleInForm(creativeBrief)}
                         className="rounded border border-indigo-700 bg-indigo-950/50 px-2 py-0.5 text-[11px] text-indigo-200 transition hover:bg-indigo-900/40 disabled:cursor-not-allowed disabled:opacity-40"
                       >
@@ -1186,16 +1271,48 @@ export default function OnboardingPage() {
                     placeholder="建议含一级标题「# 系列圣经与里程碑（SERIES_BIBLE）」…"
                   />
                 </div>
+                <div>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <label className="block text-xs text-zinc-500">英语 Locale 简报（STAGE 7，可编辑）</label>
+                    <button
+                      type="button"
+                      disabled={
+                        generatingLocaleBrief ||
+                        generatingBible ||
+                        saving ||
+                        !creativeBrief.trim() ||
+                        !seriesBibleDraft.trim() ||
+                        !settings.apiKey
+                      }
+                      onClick={() => void handleGenerateLocaleBriefInOnboarding(creativeBrief)}
+                      className="rounded border border-indigo-700 bg-indigo-950/50 px-2 py-0.5 text-[11px] text-indigo-200 transition hover:bg-indigo-900/40 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      {generatingLocaleBrief ? "生成中…" : "用 LLM 生成英语简报"}
+                    </button>
+                  </div>
+                  <p className="mt-1 text-[10px] leading-relaxed text-zinc-600">
+                    与编剧室「英语简报」同源；结合上方《创作思路确认书》与本区系列圣经正文，可先点生成再改。
+                  </p>
+                  <textarea
+                    value={englishLocaleBriefDraft}
+                    onChange={(e) => setEnglishLocaleBriefDraft(e.target.value)}
+                    rows={8}
+                    className="mt-1 w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-2 font-mono text-[11px] leading-relaxed text-zinc-200"
+                    placeholder="可选；也可进编剧室后在顶栏「英语简报」中生成。"
+                  />
+                </div>
                 <button
                   type="button"
-                  disabled={saving}
+                  disabled={saving || generatingLocaleBrief}
                   onClick={() => void handleFinishAdaptMeta()}
                   className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
                 >
                   {saving
                     ? generatingBible
                       ? "正在生成系列圣经…"
-                      : "保存中…"
+                      : generatingLocaleBrief
+                        ? "正在生成简报…"
+                        : "保存中…"
                     : "确认并进入编剧室"}
                 </button>
               </div>
@@ -1231,13 +1348,13 @@ export default function OnboardingPage() {
           role="presentation"
         >
           <div
-            className="w-full max-w-lg rounded-xl border border-zinc-700 bg-zinc-900 p-4 shadow-xl"
+            className="w-full max-w-2xl rounded-xl border border-zinc-700 bg-zinc-900 p-4 shadow-xl"
             onClick={(e) => e.stopPropagation()}
             role="dialog"
           >
             <h2 className="mb-2 text-sm font-semibold text-zinc-100">保存立项文稿</h2>
             <p className="mb-2 text-[11px] text-zinc-500">
-              确认书与系列圣经均可编辑。若圣经框内已有正文，保存时将直接采用；否则将尝试用 LLM 根据确认书自动生成后再进入编剧室（STAGE 1 起）。
+              确认书、系列圣经与英语 Locale 简报均可编辑。若圣经框内已有正文，保存时将直接采用；否则将尝试用 LLM 根据确认书自动生成圣经后再进入编剧室（STAGE 1 起）。简报须单独点击「LLM 生成简报」。
             </p>
             <p className="mb-1 text-[10px] font-medium text-zinc-400">《创作思路确认书》</p>
             <textarea
@@ -1264,7 +1381,7 @@ export default function OnboardingPage() {
                 </button>
                 <button
                   type="button"
-                  disabled={generatingBible || !briefDraft.trim() || !settings.apiKey}
+                  disabled={generatingBible || generatingLocaleBrief || !briefDraft.trim() || !settings.apiKey}
                   onClick={() => void handleLlmFillSeriesBibleInForm(briefDraft)}
                   className="rounded border border-indigo-700 bg-indigo-950/50 px-2 py-0.5 text-[10px] text-indigo-200 disabled:opacity-40"
                 >
@@ -1276,9 +1393,39 @@ export default function OnboardingPage() {
               value={seriesBibleDraft}
               onChange={(e) => setSeriesBibleDraft(e.target.value)}
               rows={8}
-              className="mb-3 w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1.5 font-mono text-[11px] leading-relaxed"
+              className="mb-2 w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1.5 font-mono text-[11px] leading-relaxed"
               placeholder="可手填，或用「LLM 生成圣经」…"
             />
+            <div className="mb-3">
+              <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-[10px] font-medium text-zinc-400">英语 Locale 简报（STAGE 7）</p>
+                <button
+                  type="button"
+                  disabled={
+                    generatingLocaleBrief ||
+                    generatingBible ||
+                    saving ||
+                    !briefDraft.trim() ||
+                    !seriesBibleDraft.trim() ||
+                    !settings.apiKey
+                  }
+                  onClick={() => void handleGenerateLocaleBriefInOnboarding(briefDraft)}
+                  className="rounded border border-indigo-700 bg-indigo-950/50 px-2 py-0.5 text-[10px] text-indigo-200 disabled:opacity-40"
+                >
+                  {generatingLocaleBrief ? "生成中…" : "LLM 生成简报"}
+                </button>
+              </div>
+              <p className="mb-1 text-[10px] leading-relaxed text-zinc-600">
+                与编剧室「英语简报」为同一数据。使用上框确认书与本框系列圣经正文，无需先保存也可生成。
+              </p>
+              <textarea
+                value={englishLocaleBriefDraft}
+                onChange={(e) => setEnglishLocaleBriefDraft(e.target.value)}
+                rows={6}
+                className="w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1.5 font-mono text-[11px] leading-relaxed text-zinc-200"
+                placeholder="点「LLM 生成简报」或手填粘贴…"
+              />
+            </div>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <button
                 type="button"
@@ -1296,7 +1443,7 @@ export default function OnboardingPage() {
               <div className="flex gap-2">
                 <button
                   type="button"
-                  disabled={saving}
+                  disabled={saving || generatingLocaleBrief}
                   onClick={() => setBriefOpen(false)}
                   className="rounded px-3 py-1.5 text-xs text-zinc-400"
                 >
@@ -1304,14 +1451,16 @@ export default function OnboardingPage() {
                 </button>
                 <button
                   type="button"
-                  disabled={saving}
+                  disabled={saving || generatingLocaleBrief}
                   onClick={() => void handleFinishOnboardingOriginal()}
                   className="rounded bg-indigo-600 px-3 py-1.5 text-xs text-white disabled:opacity-50"
                 >
                   {saving
                     ? generatingBible
                       ? "正在生成系列圣经…"
-                      : "保存中…"
+                      : generatingLocaleBrief
+                        ? "正在生成简报…"
+                        : "保存中…"
                     : "保存并进入"}
                 </button>
               </div>

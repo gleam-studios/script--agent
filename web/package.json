@@ -1,11 +1,13 @@
 {
   "name": "web",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "private": true,
   "scripts": {
     "wattpad-api": "bash scripts/start-wattpad-api.sh",
-    "dev": "concurrently -k --kill-others-on-fail -n next,wattpad -c cyan,magenta \"next dev -p 4000\" \"bash scripts/start-wattpad-api.sh\"",
-    "dev:web": "next dev -p 4000",
+    "dev": "concurrently -k --kill-others-on-fail -n next,wattpad -c cyan,magenta \"npm run dev:web\" \"bash scripts/start-wattpad-api.sh\"",
+    "dev:web": "next dev -p 4000 --webpack",
+    "dev:web:turbopack": "next dev -p 4000",
+    "dev:web:webpack": "next dev -p 4000 --webpack",
     "build": "next build",
     "start": "next start -p 4000",
     "lint": "eslint",
@@ -16,6 +18,7 @@
     "mammoth": "^1.12.0",
     "nanoid": "^5.1.7",
     "next": "16.2.3",
+    "pdf-parse": "^1.1.1",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-markdown": "^10.1.0",
@@ -23,11 +26,12 @@
     "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
-    "concurrently": "^9.2.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/pdf-parse": "^1.1.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "concurrently": "^9.2.0",
     "eslint": "^9",
     "eslint-config-next": "16.2.3",
     "tailwindcss": "^4",
